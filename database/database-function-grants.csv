@@ -1,0 +1,2 @@
+routine_schema,routine_name,specific_name,grantee,privilege_type,is_grantable
+auth,jwt,jwt_16714,postgres,EXECUTE,NO

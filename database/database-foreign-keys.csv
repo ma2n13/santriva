@@ -1,0 +1,31 @@
+source_schema,source_table,constraint_name,source_columns,target_schema,target_table,target_columns,on_update,on_delete
+auth,identities,identities_user_id_fkey,user_id,auth,users,id,NO ACTION,CASCADE
+auth,mfa_amr_claims,mfa_amr_claims_session_id_fkey,session_id,auth,sessions,id,NO ACTION,CASCADE
+auth,mfa_challenges,mfa_challenges_auth_factor_id_fkey,factor_id,auth,mfa_factors,id,NO ACTION,CASCADE
+auth,mfa_factors,mfa_factors_user_id_fkey,user_id,auth,users,id,NO ACTION,CASCADE
+auth,oauth_authorizations,oauth_authorizations_client_id_fkey,client_id,auth,oauth_clients,id,NO ACTION,CASCADE
+auth,oauth_authorizations,oauth_authorizations_user_id_fkey,user_id,auth,users,id,NO ACTION,CASCADE
+auth,oauth_consents,oauth_consents_client_id_fkey,client_id,auth,oauth_clients,id,NO ACTION,CASCADE
+auth,oauth_consents,oauth_consents_user_id_fkey,user_id,auth,users,id,NO ACTION,CASCADE
+auth,one_time_tokens,one_time_tokens_user_id_fkey,user_id,auth,users,id,NO ACTION,CASCADE
+auth,refresh_tokens,refresh_tokens_session_id_fkey,session_id,auth,sessions,id,NO ACTION,CASCADE
+auth,saml_providers,saml_providers_sso_provider_id_fkey,sso_provider_id,auth,sso_providers,id,NO ACTION,CASCADE
+auth,saml_relay_states,saml_relay_states_flow_state_id_fkey,flow_state_id,auth,flow_state,id,NO ACTION,CASCADE
+auth,saml_relay_states,saml_relay_states_sso_provider_id_fkey,sso_provider_id,auth,sso_providers,id,NO ACTION,CASCADE
+auth,sessions,sessions_oauth_client_id_fkey,oauth_client_id,auth,oauth_clients,id,NO ACTION,CASCADE
+auth,sessions,sessions_user_id_fkey,user_id,auth,users,id,NO ACTION,CASCADE
+auth,sso_domains,sso_domains_sso_provider_id_fkey,sso_provider_id,auth,sso_providers,id,NO ACTION,CASCADE
+auth,webauthn_challenges,webauthn_challenges_user_id_fkey,user_id,auth,users,id,NO ACTION,CASCADE
+auth,webauthn_credentials,webauthn_credentials_user_id_fkey,user_id,auth,users,id,NO ACTION,CASCADE
+public,log_pelanggaran,log_pelanggaran_jenis_id_fkey,jenis_id,public,master_jenis,id,NO ACTION,RESTRICT
+public,log_pelanggaran,log_pelanggaran_santri_id_fkey,santri_id,public,santri,id,NO ACTION,CASCADE
+public,pengajuan_santri,pengajuan_santri_santri_id_fkey,santri_id,public,santri,id,NO ACTION,CASCADE
+public,pengguna,pengguna_id_fkey,id,auth,users,id,NO ACTION,CASCADE
+public,pengguna,pengguna_role_id_fkey,role_id,public,master_role,id,NO ACTION,NO ACTION
+public,santri_catatan,santri_catatan_santri_id_fkey,santri_id,public,santri,id,NO ACTION,CASCADE
+public,santri_prestasi,santri_prestasi_santri_id_fkey,santri_id,public,santri,id,NO ACTION,CASCADE
+storage,objects,objects_bucketId_fkey,bucket_id,storage,buckets,id,NO ACTION,NO ACTION
+storage,s3_multipart_uploads,s3_multipart_uploads_bucket_id_fkey,bucket_id,storage,buckets,id,NO ACTION,NO ACTION
+storage,s3_multipart_uploads_parts,s3_multipart_uploads_parts_bucket_id_fkey,bucket_id,storage,buckets,id,NO ACTION,NO ACTION
+storage,s3_multipart_uploads_parts,s3_multipart_uploads_parts_upload_id_fkey,upload_id,storage,s3_multipart_uploads,id,NO ACTION,CASCADE
+storage,vector_indexes,vector_indexes_bucket_id_fkey,bucket_id,storage,buckets_vectors,id,NO ACTION,NO ACTION

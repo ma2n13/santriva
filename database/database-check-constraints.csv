@@ -1,0 +1,3 @@
+schema_name,table_name,constraint_name,constraint_definition
+public,pengajuan_santri,pengajuan_santri_jenis_pengajuan_check,"CHECK (jenis_pengajuan = ANY (ARRAY['Baru'::text, 'Update'::text]))"
+public,pengajuan_santri,pengajuan_santri_status_pengajuan_check,"CHECK (status_pengajuan = ANY (ARRAY['Menunggu'::text, 'Disetujui'::text, 'Ditolak'::text]))"
