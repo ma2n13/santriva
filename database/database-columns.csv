@@ -1,0 +1,82 @@
+table_schema,table_name,ordinal_position,column_name,data_type,udt_name,is_nullable,column_default
+public,log_pelanggaran,1,id,uuid,uuid,NO,gen_random_uuid()
+public,log_pelanggaran,2,santri_id,uuid,uuid,YES,null
+public,log_pelanggaran,3,jenis_id,uuid,uuid,YES,null
+public,log_pelanggaran,4,tgl_melanggar,date,date,NO,null
+public,log_pelanggaran,5,status_tazir,text,text,YES,'Belum'::text
+public,log_pelanggaran,6,keterangan,text,text,YES,null
+public,log_pelanggaran,7,input_by,text,text,YES,null
+public,log_pelanggaran,8,tazir_by,text,text,YES,null
+public,log_pelanggaran,9,created_at,timestamp with time zone,timestamptz,YES,now()
+public,manage_users,1,id,uuid,uuid,NO,gen_random_uuid()
+public,manage_users,2,email,text,text,NO,null
+public,manage_users,3,nickname,text,text,NO,null
+public,manage_users,4,role,text,text,NO,null
+public,manage_users,5,assigned_types,jsonb,jsonb,YES,'[]'::jsonb
+public,manage_users,6,assigned_tags,jsonb,jsonb,YES,'[]'::jsonb
+public,manage_users,7,last_seen,timestamp with time zone,timestamptz,YES,null
+public,manage_users,8,last_action,text,text,YES,null
+public,manage_users,9,created_at,timestamp with time zone,timestamptz,YES,now()
+public,master_jenis,1,id,uuid,uuid,NO,gen_random_uuid()
+public,master_jenis,2,nama,text,text,NO,null
+public,master_jenis,3,tipe,text,text,YES,'Pelanggaran'::text
+public,master_jenis,4,created_at,timestamp with time zone,timestamptz,YES,now()
+public,master_role,1,id,uuid,uuid,NO,gen_random_uuid()
+public,master_role,2,nama_role,text,text,NO,null
+public,master_role,3,permissions,jsonb,jsonb,YES,'[]'::jsonb
+public,master_role,4,created_at,timestamp with time zone,timestamptz,YES,now()
+public,pengajuan_santri,1,id,uuid,uuid,NO,gen_random_uuid()
+public,pengajuan_santri,2,santri_id,uuid,uuid,YES,null
+public,pengajuan_santri,3,jenis_pengajuan,text,text,NO,null
+public,pengajuan_santri,4,status_pengajuan,text,text,YES,'Menunggu'::text
+public,pengajuan_santri,5,data_pengajuan,jsonb,jsonb,NO,null
+public,pengajuan_santri,6,catatan_admin,text,text,YES,null
+public,pengajuan_santri,7,created_at,timestamp with time zone,timestamptz,NO,"timezone('utc'::text, now())"
+public,pengguna,1,id,uuid,uuid,NO,null
+public,pengguna,2,email,text,text,NO,null
+public,pengguna,3,nama_lengkap,text,text,NO,null
+public,pengguna,4,role_id,uuid,uuid,YES,null
+public,pengguna,5,created_at,timestamp with time zone,timestamptz,YES,now()
+public,pengguna,6,usulan_role,text,text,YES,null
+public,pengguna,7,status_akun,text,text,YES,'Menunggu'::text
+public,santri,1,id,uuid,uuid,NO,gen_random_uuid()
+public,santri,2,kode_unik,text,text,YES,null
+public,santri,3,created_at,timestamp with time zone,timestamptz,YES,"timezone('utc'::text, now())"
+public,santri,4,nama_lengkap,text,text,NO,null
+public,santri,5,nis,text,text,YES,null
+public,santri,6,nisn,text,text,YES,null
+public,santri,7,nik,text,text,YES,null
+public,santri,8,jenis_kelamin,character varying,varchar,YES,null
+public,santri,9,tempat_lahir,text,text,YES,null
+public,santri,10,tanggal_lahir,date,date,YES,null
+public,santri,11,no_hp_santri,text,text,YES,null
+public,santri,12,kelas,text,text,YES,null
+public,santri,13,asrama,text,text,YES,null
+public,santri,14,status,text,text,YES,'Aktif'::text
+public,santri,15,tanggal_masuk,date,date,YES,null
+public,santri,16,alamat_jalan,text,text,YES,null
+public,santri,17,desa_kelurahan,text,text,YES,null
+public,santri,18,kecamatan,text,text,YES,null
+public,santri,19,kabupaten_kota,text,text,YES,null
+public,santri,20,provinsi,text,text,YES,null
+public,santri,21,kode_pos,text,text,YES,null
+public,santri,22,nama_ayah,text,text,YES,null
+public,santri,23,pekerjaan_ayah,text,text,YES,null
+public,santri,24,nama_ibu,text,text,YES,null
+public,santri,25,pekerjaan_ibu,text,text,YES,null
+public,santri,26,nama_wali,text,text,YES,null
+public,santri,27,no_hp_wali,text,text,YES,null
+public,santri,28,tahun_masuk,text,text,YES,null
+public,santri,29,tahun_keluar,text,text,YES,null
+public,santri,30,emis_id,text,text,YES,null
+public,santri,31,status_sinkronisasi,text,text,YES,'Belum Sinkron'::text
+public,santri,32,terakhir_sinkron,timestamp with time zone,timestamptz,YES,null
+public,santri,33,catatan,text,text,YES,null
+public,santri_catatan,1,id,uuid,uuid,NO,gen_random_uuid()
+public,santri_catatan,2,santri_id,uuid,uuid,YES,null
+public,santri_catatan,3,isi,text,text,NO,null
+public,santri_catatan,4,created_at,timestamp with time zone,timestamptz,YES,now()
+public,santri_prestasi,1,id,uuid,uuid,NO,gen_random_uuid()
+public,santri_prestasi,2,santri_id,uuid,uuid,YES,null
+public,santri_prestasi,3,prestasi,text,text,NO,null
+public,santri_prestasi,4,created_at,timestamp with time zone,timestamptz,YES,now()

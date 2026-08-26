@@ -1,0 +1,45 @@
+table_schema,table_name,constraint_name,constraint_type,column_name,foreign_table_schema,foreign_table_name,foreign_column_name
+public,log_pelanggaran,2200_25552_1_not_null,CHECK,null,null,null,null
+public,log_pelanggaran,2200_25552_4_not_null,CHECK,null,null,null,null
+public,log_pelanggaran,log_pelanggaran_jenis_id_fkey,FOREIGN KEY,jenis_id,public,master_jenis,id
+public,log_pelanggaran,log_pelanggaran_santri_id_fkey,FOREIGN KEY,santri_id,public,santri,id
+public,log_pelanggaran,log_pelanggaran_pkey,PRIMARY KEY,id,public,log_pelanggaran,id
+public,manage_users,2200_25600_1_not_null,CHECK,null,null,null,null
+public,manage_users,2200_25600_2_not_null,CHECK,null,null,null,null
+public,manage_users,2200_25600_3_not_null,CHECK,null,null,null,null
+public,manage_users,2200_25600_4_not_null,CHECK,null,null,null,null
+public,manage_users,manage_users_pkey,PRIMARY KEY,id,public,manage_users,id
+public,manage_users,manage_users_email_key,UNIQUE,email,public,manage_users,email
+public,master_jenis,2200_25542_1_not_null,CHECK,null,null,null,null
+public,master_jenis,2200_25542_2_not_null,CHECK,null,null,null,null
+public,master_jenis,master_jenis_pkey,PRIMARY KEY,id,public,master_jenis,id
+public,master_role,2200_25649_1_not_null,CHECK,null,null,null,null
+public,master_role,2200_25649_2_not_null,CHECK,null,null,null,null
+public,master_role,master_role_pkey,PRIMARY KEY,id,public,master_role,id
+public,pengajuan_santri,2200_25500_1_not_null,CHECK,null,null,null,null
+public,pengajuan_santri,2200_25500_3_not_null,CHECK,null,null,null,null
+public,pengajuan_santri,2200_25500_5_not_null,CHECK,null,null,null,null
+public,pengajuan_santri,2200_25500_7_not_null,CHECK,null,null,null,null
+public,pengajuan_santri,pengajuan_santri_jenis_pengajuan_check,CHECK,null,public,pengajuan_santri,jenis_pengajuan
+public,pengajuan_santri,pengajuan_santri_status_pengajuan_check,CHECK,null,public,pengajuan_santri,status_pengajuan
+public,pengajuan_santri,pengajuan_santri_santri_id_fkey,FOREIGN KEY,santri_id,public,santri,id
+public,pengajuan_santri,pengajuan_santri_pkey,PRIMARY KEY,id,public,pengajuan_santri,id
+public,pengguna,2200_25659_1_not_null,CHECK,null,null,null,null
+public,pengguna,2200_25659_2_not_null,CHECK,null,null,null,null
+public,pengguna,2200_25659_3_not_null,CHECK,null,null,null,null
+public,pengguna,pengguna_id_fkey,FOREIGN KEY,id,null,null,null
+public,pengguna,pengguna_role_id_fkey,FOREIGN KEY,role_id,public,master_role,id
+public,pengguna,pengguna_pkey,PRIMARY KEY,id,public,pengguna,id
+public,santri,2200_25363_1_not_null,CHECK,null,null,null,null
+public,santri,2200_25363_4_not_null,CHECK,null,null,null,null
+public,santri,santri_pkey,PRIMARY KEY,id,public,santri,id
+public,santri,santri_emis_id_key,UNIQUE,emis_id,public,santri,emis_id
+public,santri,santri_kode_unik_key,UNIQUE,kode_unik,public,santri,kode_unik
+public,santri_catatan,2200_25572_1_not_null,CHECK,null,null,null,null
+public,santri_catatan,2200_25572_3_not_null,CHECK,null,null,null,null
+public,santri_catatan,santri_catatan_santri_id_fkey,FOREIGN KEY,santri_id,public,santri,id
+public,santri_catatan,santri_catatan_pkey,PRIMARY KEY,id,public,santri_catatan,id
+public,santri_prestasi,2200_25586_1_not_null,CHECK,null,null,null,null
+public,santri_prestasi,2200_25586_3_not_null,CHECK,null,null,null,null
+public,santri_prestasi,santri_prestasi_santri_id_fkey,FOREIGN KEY,santri_id,public,santri,id
+public,santri_prestasi,santri_prestasi_pkey,PRIMARY KEY,id,public,santri_prestasi,id
