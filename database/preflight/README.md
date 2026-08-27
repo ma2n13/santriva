@@ -47,3 +47,29 @@ Jangan menjalankan migrasi apabila:
 - ada perubahan database yang belum dipahami.
 
 RLS dan penguncian grants baru dilakukan setelah frontend pengganti lulus pengujian preview.
+
+## Task 2 — fondasi keamanan aditif
+
+Task 2 menambahkan tempat penyimpanan privat dan antrean baru tanpa mengaktifkan RLS atau menghapus akses lama. Aplikasi produksi lama tetap dapat berjalan setelah tahap ini.
+
+File yang digunakan:
+
+- `../tests/20260826_01_security_foundation_test.sql`
+- `../migrations/20260826_01_security_foundation.sql`
+
+Urutan wajib di Supabase SQL Editor:
+
+1. Jalankan file test. Sebelum migrasi, hasilnya **harus gagal** dengan pesan `FOUNDATION_TEST_FAILED`. Ini membuktikan test mampu mendeteksi bahwa fondasi belum ada.
+2. Jalankan file migration. Hasil akhirnya harus menampilkan `SECURITY_FOUNDATION_APPLIED` dengan jumlah santri, pengajuan, dan pengguna yang tidak berkurang.
+3. Jalankan kembali file test. Hasil akhirnya harus menampilkan `SECURITY_FOUNDATION_TEST_OK`.
+4. Jika migration menampilkan `MIGRATION_ABORTED`, jangan menjalankan SQL lain. Seluruh transaksi akan dibatalkan otomatis; simpan pesan error untuk diperiksa.
+
+Migrasi ini sengaja tidak melakukan hal berikut:
+
+- tidak menjalankan `DROP`, `TRUNCATE`, atau `DELETE`;
+- tidak memperbarui baris pada tabel `santri`;
+- tidak mengaktifkan RLS;
+- tidak menghapus policy lama;
+- tidak membuka tabel privat kepada `anon` atau `authenticated`.
+
+Nilai lama pada `pengajuan_santri` diberi sumber `legacy`. Catatan santri lama diberi `tampil_ke_wali = false`, sehingga tidak otomatis terlihat oleh wali. Permission baru `hapus_induk` hanya ditambahkan kepada role Super Admin.
