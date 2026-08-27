@@ -1,0 +1,10 @@
+schema_name,table_name,rls_enabled,rls_forced
+public,log_pelanggaran,false,false
+public,manage_users,false,false
+public,master_jenis,false,false
+public,master_role,false,false
+public,pengajuan_santri,false,false
+public,pengguna,false,false
+public,santri,false,false
+public,santri_catatan,false,false
+public,santri_prestasi,false,false

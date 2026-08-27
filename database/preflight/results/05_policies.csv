@@ -1,0 +1,5 @@
+schema_name,table_name,policy_name,permissive,roles,cmd,qual,with_check
+public,pengajuan_santri,Admin bisa mengubah data pengajuan,PERMISSIVE,{public},ALL,true,null
+public,pengajuan_santri,Publik bisa melihat data pengajuan tertentu,PERMISSIVE,{public},SELECT,true,null
+public,pengajuan_santri,Publik bisa membuat pengajuan,PERMISSIVE,{public},INSERT,null,true
+public,santri,Publik bisa melihat data santri,PERMISSIVE,{public},SELECT,true,null
