@@ -11,6 +11,7 @@ import SantriPage from './components/SantriPage';
 import PortalSantri from './components/PortalSantri';
 import TakziranDashboard from './components/TakziranDashboard';
 import PublicPendaftaran from './components/PublicPendaftaran';
+import CekDataPublik from './components/CekDataPublik';
 import AdminReview from './components/AdminReview';
 import LoginPage from './components/LoginPage';
 import PengaturanSistem from './components/PengaturanSistem';
@@ -266,7 +267,8 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/pendaftaran" element={<PublicPendaftaran />} />
-        <Route path="/s/:kode" element={<PortalSantri />} />
+        <Route path="/cek-data" element={<CekDataPublik />} />
+        <Route path="/s" element={<PortalSantri />} />
         <Route path="/*" element={renderProtectedRoutes()} />
       </Routes>
     </BrowserRouter>
