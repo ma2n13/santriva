@@ -1,275 +1,206 @@
-import React, { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
-import { supabase } from './lib/supabase';
-import { 
-  Users, ClipboardList, CheckSquare, UserPlus, Menu, X,
-  ShieldAlert, LogOut, XCircle, Send, Clock
+import { useCallback, useEffect, useState } from 'react';
+import type { Session } from '@supabase/supabase-js';
+import { BrowserRouter, Link, Route, Routes, useLocation } from 'react-router-dom';
+import {
+  CheckSquare, ClipboardList, Clock, LogOut, Menu, Send, ShieldAlert,
+  UserPlus, Users, X, XCircle,
 } from 'lucide-react';
-
-// Import Halaman
-import SantriPage from './components/SantriPage';
-import PortalSantri from './components/PortalSantri';
-import TakziranDashboard from './components/TakziranDashboard';
-import PublicPendaftaran from './components/PublicPendaftaran';
-import CekDataPublik from './components/CekDataPublik';
+import { supabase } from './lib/supabase';
+import { getMyProfile, listRegistrationRoles, registerMyProfile } from './lib/securityApi';
+import type { MyProfile, RolePermission } from './types/security';
 import AdminReview from './components/AdminReview';
+import CekDataPublik from './components/CekDataPublik';
 import LoginPage from './components/LoginPage';
 import PengaturanSistem from './components/PengaturanSistem';
+import PortalSantri from './components/PortalSantri';
+import PublicPendaftaran from './components/PublicPendaftaran';
+import SantriPage from './components/SantriPage';
+import TakziranDashboard from './components/TakziranDashboard';
 
-// ==========================================
-// KOMPONEN: Form Pendaftaran Pengguna Baru
-// ==========================================
-function FormPendaftaranAkun({ user, onRegistered }: { user: any, onRegistered: () => void }) {
+interface RegistrationUser {
+  email?: string;
+  user_metadata?: { full_name?: string };
+}
+
+export function FormPendaftaranAkun({
+  user,
+  onRegistered,
+}: {
+  user: RegistrationUser;
+  onRegistered: () => void | Promise<void>;
+}) {
   const [nama, setNama] = useState(user.user_metadata?.full_name || '');
   const [usulanRole, setUsulanRole] = useState('');
-  const [roles, setRoles] = useState<any[]>([]);
+  const [roles, setRoles] = useState<Array<{ nama_role: string }>>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    // Ambil daftar role dari database (Sembunyikan Super Admin agar tidak dipilih sembarangan)
-    supabase.from('master_role').select('nama_role').neq('nama_role', 'Super Admin')
-      .then(({ data }) => setRoles(data || []));
+    let active = true;
+    listRegistrationRoles()
+      .then((data) => { if (active) setRoles(data); })
+      .catch(() => { if (active) setError('Daftar posisi belum dapat dimuat. Silakan coba lagi.'); });
+    return () => { active = false; };
   }, []);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  async function handleSubmit(event: React.FormEvent) {
+    event.preventDefault();
     setLoading(true);
-    // Gunakan UPSERT agar jika akun lama tertinggal di database, data tetap bisa diperbarui
-    const { error } = await supabase.from('pengguna').upsert([{
-      id: user.id, 
-      email: user.email, 
-      nama_lengkap: nama, 
-      usulan_role: usulanRole,
-      status_akun: 'Menunggu'
-    }]);
-    setLoading(false);
-    
-    if (error) alert('Gagal mendaftar: ' + error.message);
-    else onRegistered();
-  };
+    setError('');
+    try {
+      await registerMyProfile(nama.trim(), usulanRole);
+      await onRegistered();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Pendaftaran akun belum dapat dikirim.');
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#FDFBF7] p-4 font-sans">
-      <div className="bg-white max-w-md w-full p-8 rounded-[2rem] shadow-xl border border-emerald-100">
-        <div className="w-16 h-16 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto mb-4">
-          <UserPlus className="w-8 h-8" />
-        </div>
-        <h2 className="text-2xl font-black text-emerald-950 text-center">Lengkapi Data Anda</h2>
-        <p className="text-sm text-gray-500 text-center mt-2 mb-6">Akun Google Anda belum terdaftar di SIM Santri. Silakan isi form pengajuan akses ini.</p>
-        
+    <main className="flex min-h-screen items-center justify-center bg-[#FDFBF7] p-4">
+      <section className="w-full max-w-md rounded-[2rem] border border-emerald-100 bg-white p-8 shadow-xl">
+        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-amber-100 text-amber-600"><UserPlus aria-hidden="true" /></div>
+        <h1 className="text-center text-2xl font-black text-emerald-950">Lengkapi Data Anda</h1>
+        <p className="mb-6 mt-2 text-center text-sm text-gray-500">Pilih posisi yang diajukan. Admin akan meninjau sebelum memberi akses.</p>
+        {error && <p role="alert" className="mb-4 rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-700">{error}</p>}
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-xs font-bold text-emerald-900 uppercase mb-1">Email (Google)</label>
-            <input type="text" disabled value={user.email} className="w-full border border-gray-200 p-3 rounded-xl bg-gray-100 text-gray-500 font-medium text-sm" />
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-emerald-900 uppercase mb-1">Nama Lengkap Anda</label>
-            <input required type="text" value={nama} onChange={e => setNama(e.target.value)} className="w-full border border-gray-200 p-3 rounded-xl bg-gray-50 focus:bg-white focus:ring-2 focus:ring-amber-500 outline-none font-medium text-sm text-gray-800" />
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-emerald-900 uppercase mb-1">Role / Posisi yang Diminta</label>
-            <select required value={usulanRole} onChange={e => setUsulanRole(e.target.value)} className="w-full border border-gray-200 p-3 rounded-xl bg-gray-50 focus:bg-white focus:ring-2 focus:ring-amber-500 outline-none font-bold text-sm text-gray-800 cursor-pointer">
+          <label className="block text-xs font-bold uppercase text-emerald-900">Email (Google)
+            <input disabled value={user.email || ''} className="mt-1 w-full rounded-xl border border-gray-200 bg-gray-100 p-3 text-sm text-gray-500" />
+          </label>
+          <label className="block text-xs font-bold uppercase text-emerald-900">Nama Lengkap Anda
+            <input required value={nama} onChange={(event) => setNama(event.target.value)} className="mt-1 w-full rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm" />
+          </label>
+          <label className="block text-xs font-bold uppercase text-emerald-900">Role / Posisi yang Diminta
+            <select required value={usulanRole} onChange={(event) => setUsulanRole(event.target.value)} className="mt-1 w-full rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm font-bold">
               <option value="" disabled>-- Pilih Posisi Anda --</option>
-              {roles.map(r => <option key={r.nama_role} value={r.nama_role}>{r.nama_role}</option>)}
+              {roles.map((role) => <option key={role.nama_role} value={role.nama_role}>{role.nama_role}</option>)}
             </select>
-          </div>
-          <button disabled={loading} type="submit" className="w-full mt-4 bg-emerald-800 hover:bg-emerald-900 text-white font-bold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-all shadow-md">
-            {loading ? <span className="animate-spin text-xl">↻</span> : <Send className="w-4 h-4" />} Kirim Pengajuan Akses
-          </button>
+          </label>
+          <button disabled={loading} type="submit" className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-800 py-3.5 font-bold text-white disabled:opacity-60"><Send className="h-4 w-4" aria-hidden="true" />{loading ? 'Mengirim…' : 'Kirim Pengajuan Akses'}</button>
         </form>
-        <button onClick={() => supabase.auth.signOut()} className="w-full mt-3 py-3 text-sm font-bold text-red-500 hover:bg-red-50 rounded-xl transition-colors">Batalkan & Keluar</button>
-      </div>
-    </div>
+        <button type="button" onClick={() => void supabase.auth.signOut()} className="mt-3 w-full rounded-xl py-3 text-sm font-bold text-red-500">Batalkan & Keluar</button>
+      </section>
+    </main>
   );
 }
 
-// ==========================================
-// KOMPONEN: Layar Menunggu Verifikasi
-// ==========================================
 function MenungguVerifikasi() {
   return (
-    <div className="h-screen flex flex-col items-center justify-center bg-[#FDFBF7] text-center p-6 font-sans">
-      <Clock className="w-24 h-24 text-amber-500 mb-6 drop-shadow-md animate-pulse" />
-      <h2 className="text-3xl font-black text-emerald-950">Pengajuan Sedang Diproses</h2>
-      <p className="text-gray-600 mt-3 max-w-md font-medium leading-relaxed">
-        Pendaftaran Anda telah kami terima dan saat ini sedang menunggu validasi dari Super Admin. Silakan cek kembali secara berkala.
-      </p>
-      <button onClick={() => supabase.auth.signOut()} className="mt-8 px-8 py-3 bg-emerald-800 hover:bg-emerald-900 text-white rounded-xl font-bold shadow-lg shadow-emerald-900/20 transition-all flex items-center gap-2">
-        <LogOut className="w-4 h-4"/> Keluar Akun
-      </button>
-    </div>
+    <main className="flex min-h-screen flex-col items-center justify-center bg-[#FDFBF7] p-6 text-center">
+      <Clock className="mb-6 h-24 w-24 text-amber-500" aria-hidden="true" />
+      <h1 className="text-3xl font-black text-emerald-950">Pengajuan Sedang Diproses</h1>
+      <p className="mt-3 max-w-md leading-relaxed text-gray-600">Pengajuan akses sedang menunggu validasi Super Admin.</p>
+      <button type="button" onClick={() => void supabase.auth.signOut()} className="mt-8 flex items-center gap-2 rounded-xl bg-emerald-800 px-8 py-3 font-bold text-white"><LogOut className="h-4 w-4" aria-hidden="true" />Keluar Akun</button>
+    </main>
   );
 }
 
-// ==========================================
-// KOMPONEN: Layar Akun Ditolak
-// ==========================================
 function AkunDitolak() {
   return (
-    <div className="h-screen flex flex-col items-center justify-center bg-[#FDFBF7] text-center p-6 font-sans">
-      <XCircle className="w-24 h-24 text-red-500 mb-6 drop-shadow-md" />
-      <h2 className="text-3xl font-black text-red-950">Akses Ditolak</h2>
-      <p className="text-gray-600 mt-3 max-w-md font-medium leading-relaxed">
-        Mohon maaf, pengajuan akses Anda ke sistem SIM Santri telah ditolak oleh Admin. Hubungi pihak sekolah jika ini adalah sebuah kesalahan.
-      </p>
-      <button onClick={() => supabase.auth.signOut()} className="mt-8 px-8 py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold shadow-lg transition-all flex items-center gap-2">
-        <LogOut className="w-4 h-4"/> Keluar Akun
-      </button>
-    </div>
+    <main className="flex min-h-screen flex-col items-center justify-center bg-[#FDFBF7] p-6 text-center">
+      <XCircle className="mb-6 h-24 w-24 text-red-500" aria-hidden="true" />
+      <h1 className="text-3xl font-black text-red-950">Akses Ditolak</h1>
+      <p className="mt-3 max-w-md leading-relaxed text-gray-600">Hubungi pihak pesantren jika keputusan ini perlu diperiksa kembali.</p>
+      <button type="button" onClick={() => void supabase.auth.signOut()} className="mt-8 flex items-center gap-2 rounded-xl bg-red-600 px-8 py-3 font-bold text-white"><LogOut className="h-4 w-4" aria-hidden="true" />Keluar Akun</button>
+    </main>
   );
 }
 
-// ==========================================
-// KOMPONEN: Layout Admin dengan Validasi Hak Akses
-// ==========================================
-function AdminLayout({ children, userProfile }: { children: React.ReactNode, userProfile: any }) {
+function AdminLayout({ children, profile }: { children: React.ReactNode; profile: MyProfile }) {
   const location = useLocation();
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
-  const hasPerm = (perm: string) => userProfile?.master_role?.permissions?.includes(perm) || false;
-
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const permissions = profile.role?.permissions ?? [];
+  const hasPermission = (permission: RolePermission) => permissions.includes(permission);
   const menuItems = [
-    { path: '/', label: 'Buku Induk Santri', icon: <Users className="w-5 h-5" />, show: hasPerm('akses_induk') },
-    { path: '/review', label: 'Review Pengajuan', icon: <CheckSquare className="w-5 h-5" />, show: hasPerm('validasi_pengajuan') },
-    { path: '/takziran', label: 'Absensi & Takziran', icon: <ClipboardList className="w-5 h-5" />, show: hasPerm('akses_takziran') },
-    { path: '/pengaturan', label: 'Pengaturan Sistem', icon: <ShieldAlert className="w-5 h-5" />, show: hasPerm('kelola_pengguna') },
-  ].filter(item => item.show);
+    { path: '/', label: 'Buku Induk Santri', icon: Users, show: hasPermission('akses_induk') },
+    { path: '/review', label: 'Review Pengajuan', icon: CheckSquare, show: hasPermission('validasi_pengajuan') },
+    { path: '/takziran', label: 'Absensi & Takziran', icon: ClipboardList, show: hasPermission('akses_takziran') },
+    { path: '/pengaturan', label: 'Pengaturan Sistem', icon: ShieldAlert, show: hasPermission('kelola_pengguna') },
+  ].filter((item) => item.show);
+
+  const menu = menuItems.map((item) => {
+    const Icon = item.icon;
+    return <Link key={item.path} to={item.path} onClick={() => setMobileOpen(false)} className={`flex items-center gap-3 rounded-xl px-4 py-3.5 font-bold ${location.pathname === item.path ? 'bg-amber-500 text-emerald-950' : 'text-emerald-100 hover:bg-emerald-800'}`}><Icon className="h-5 w-5" aria-hidden="true" />{item.label}</Link>;
+  });
 
   return (
-    <div className="flex h-screen bg-[#FDFBF7] overflow-hidden font-sans selection:bg-amber-200 selection:text-emerald-900">
-      
-      {/* SIDEBAR DESKTOP */}
-      <aside className="hidden md:flex flex-col w-72 bg-gradient-to-b from-[#064e3b] to-emerald-900 text-emerald-50 shadow-2xl z-20 border-r-4 border-amber-500">
-        <div className="p-6 flex items-center justify-center border-b border-emerald-800/50">
-          <div className="flex items-center gap-3">
-            <img src="/logo.jpg" alt="Logo" className="w-12 h-12 rounded-full border-2 border-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.3)] object-cover bg-white" onError={(e) => { e.currentTarget.src = 'https://via.placeholder.com/150'; }} />
-            <div>
-              <h1 className="text-lg font-black text-amber-400 leading-tight">SIM Santri</h1>
-              <p className="text-[10px] font-bold tracking-widest uppercase text-emerald-200">Daruttauhid Jepara</p>
-            </div>
-          </div>
-        </div>
-        
-        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-          <p className="px-4 text-xs font-bold text-emerald-400/70 uppercase tracking-wider mb-4 mt-2">Menu Utama</p>
-          {menuItems.map(item => (
-            <Link key={item.path} to={item.path} className={`flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-300 font-bold ${location.pathname === item.path ? 'bg-amber-500 text-emerald-950 shadow-lg' : 'text-emerald-100 hover:bg-emerald-800'}`}>
-              {item.icon} <span className="text-sm">{item.label}</span>
-            </Link>
-          ))}
-        </nav>
-
-        {/* Profil & Logout */}
-        <div className="p-4 border-t border-emerald-800/50 bg-emerald-950/30">
-          <div className="px-4 py-3 mb-3 bg-emerald-900/50 rounded-xl border border-emerald-800">
-             <p className="text-xs text-emerald-400 font-bold truncate">{userProfile?.nama_lengkap}</p>
-             <p className="text-[10px] text-amber-400 font-bold uppercase mt-0.5">{userProfile?.master_role?.nama_role || 'Belum Ada Role'}</p>
-          </div>
-          <button onClick={() => supabase.auth.signOut()} className="flex items-center justify-center gap-2 w-full px-4 py-3 bg-rose-900/40 hover:bg-rose-900/80 rounded-xl text-rose-300 transition-colors text-sm font-bold border border-rose-900/50">
-            <LogOut className="w-4 h-4"/> Keluar Akun
-          </button>
-        </div>
+    <div className="flex h-screen overflow-hidden bg-[#FDFBF7]">
+      <aside className="hidden w-72 flex-col border-r-4 border-amber-500 bg-gradient-to-b from-[#064e3b] to-emerald-900 text-white md:flex">
+        <div className="border-b border-emerald-800 p-6 text-center"><h1 className="text-xl font-black text-amber-400">SIM Santri</h1><p className="text-xs text-emerald-200">Daruttauhid Jepara</p></div>
+        <nav className="flex-1 space-y-2 overflow-y-auto p-4">{menu}</nav>
+        <div className="border-t border-emerald-800 p-4"><p className="truncate text-xs font-bold text-emerald-300">{profile.nama_lengkap}</p><p className="mt-1 text-xs font-bold uppercase text-amber-400">{profile.role?.nama_role || 'Belum Ada Role'}</p><button type="button" onClick={() => void supabase.auth.signOut()} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-rose-900/60 p-3 text-sm font-bold text-rose-200"><LogOut className="h-4 w-4" aria-hidden="true" />Keluar</button></div>
       </aside>
-
-      {/* TOPBAR MOBILE */}
-      <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-gradient-to-r from-[#064e3b] to-emerald-900 text-white flex items-center justify-between px-4 z-30 border-b-2 border-amber-500">
-        <div className="flex items-center gap-2"><img src="/logo.jpg" alt="Logo" className="w-8 h-8 rounded-full border border-amber-400 bg-white" /><h1 className="text-lg font-black text-amber-400">SIM Santri</h1></div>
-        <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2 text-amber-400 bg-emerald-800/50 rounded-lg">{isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}</button>
-      </div>
-
-      {isMobileMenuOpen && (
-        <div className="md:hidden fixed inset-0 z-20 bg-emerald-950/95 backdrop-blur-sm text-white pt-20 px-4 pb-4 overflow-y-auto">
-           <nav className="space-y-2">
-            {menuItems.map(item => (<Link key={item.path} to={item.path} onClick={() => setIsMobileMenuOpen(false)} className={`flex items-center gap-3 px-4 py-4 rounded-xl font-bold ${location.pathname === item.path ? 'bg-amber-500 text-emerald-950' : 'text-emerald-200'}`}>{item.icon} <span>{item.label}</span></Link>))}
-            <button onClick={() => supabase.auth.signOut()} className="w-full mt-8 flex items-center justify-center gap-3 px-4 py-4 rounded-xl text-rose-300 border border-rose-900 bg-rose-950/50 font-bold"><LogOut className="w-5 h-5"/> Keluar Akun</button>
-          </nav>
-        </div>
-      )}
-
-      {/* AREA KONTEN UTAMA */}
-      <main className="flex-1 overflow-y-auto pt-16 md:pt-0 p-4 sm:p-8">
-        {children}
-      </main>
+      <header className="fixed inset-x-0 top-0 z-30 flex h-16 items-center justify-between border-b-2 border-amber-500 bg-emerald-900 px-4 text-white md:hidden"><strong className="text-amber-400">SIM Santri</strong><button type="button" aria-label="Buka menu" onClick={() => setMobileOpen(!mobileOpen)}>{mobileOpen ? <X /> : <Menu />}</button></header>
+      {mobileOpen && <div className="fixed inset-0 z-20 space-y-2 bg-emerald-950/95 px-4 pt-20 md:hidden">{menu}</div>}
+      <main className="flex-1 overflow-y-auto p-4 pt-20 sm:p-8 md:pt-8">{children}</main>
     </div>
   );
 }
 
-// ==========================================
-// ROOT APP
-// ==========================================
-export default function App() {
-  const [session, setSession] = useState<any>(null);
-  const [userProfile, setUserProfile] = useState<any>(null);
-  const [loadingAuth, setLoadingAuth] = useState(true);
+function ProtectedApp() {
+  const [session, setSession] = useState<Session | null>(null);
+  const [profile, setProfile] = useState<MyProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      if (session) fetchUserProfile(session.user);
-      else setLoadingAuth(false);
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      if (session) fetchUserProfile(session.user);
-      else { setUserProfile(null); setLoadingAuth(false); }
-    });
-    
-    return () => subscription.unsubscribe();
+  const refreshProfile = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      setProfile(await getMyProfile());
+    } catch {
+      setError('Profil pengguna belum dapat dimuat. Silakan coba lagi.');
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const fetchUserProfile = async (user: any) => {
-    try {
-      const { data } = await supabase.from('pengguna').select('*, master_role(nama_role, permissions)').eq('id', user.id).maybeSingle();
-      setUserProfile(data);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoadingAuth(false);
-    }
-  };
+  useEffect(() => {
+    let active = true;
+    supabase.auth.getSession().then(({ data }) => {
+      if (!active) return;
+      setSession(data.session);
+      if (data.session) void refreshProfile(); else setLoading(false);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      if (!active) return;
+      setSession(nextSession);
+      if (nextSession) void refreshProfile(); else { setProfile(null); setLoading(false); }
+    });
+    return () => { active = false; subscription.unsubscribe(); };
+  }, [refreshProfile]);
 
-  if (loadingAuth) return <div className="h-screen flex items-center justify-center bg-[#FDFBF7] text-emerald-800 font-bold animate-pulse">Menghubungkan ke server...</div>;
+  if (loading) return <div className="flex min-h-screen items-center justify-center bg-[#FDFBF7] font-bold text-emerald-800">Menghubungkan ke server…</div>;
+  if (!session) return <LoginPage />;
+  if (error) return <main className="flex min-h-screen items-center justify-center bg-[#FDFBF7] p-5"><section className="rounded-2xl bg-white p-7 text-center shadow"><p role="alert" className="font-semibold text-red-700">{error}</p><button type="button" onClick={() => void refreshProfile()} className="mt-4 rounded-xl bg-emerald-800 px-5 py-3 font-bold text-white">Coba lagi</button></section></main>;
+  if (!profile) return <FormPendaftaranAkun user={session.user} onRegistered={refreshProfile} />;
+  if (profile.status_akun === 'Ditolak') return <AkunDitolak />;
+  if (profile.status_akun !== 'Aktif' || !profile.role_id || !profile.role) return <MenungguVerifikasi />;
 
-  const renderProtectedRoutes = () => {
-    if (!session) return <LoginPage />;
-    
-    // Tampilkan Form Jika data belum ada, ATAU data lama tapi belum punya usulan_role & belum disetujui
-    if (!userProfile || (!userProfile.usulan_role && !userProfile.role_id)) {
-      return <FormPendaftaranAkun user={session.user} onRegistered={() => fetchUserProfile(session.user)} />;
-    }
+  const permissions = profile.role.permissions;
+  const hasPermission = (permission: RolePermission) => permissions.includes(permission);
+  return (
+    <AdminLayout profile={profile}>
+      <Routes>
+        {hasPermission('akses_induk') && <Route path="/" element={<SantriPage permissions={permissions} />} />}
+        {hasPermission('validasi_pengajuan') && <Route path="/review" element={<AdminReview permissions={permissions} />} />}
+        {hasPermission('akses_takziran') && <Route path="/takziran" element={<TakziranDashboard />} />}
+        {hasPermission('kelola_pengguna') && <Route path="/pengaturan" element={<PengaturanSistem />} />}
+        <Route path="*" element={<div className="p-10 text-center font-bold text-gray-500">Anda tidak memiliki hak akses ke halaman ini.</div>} />
+      </Routes>
+    </AdminLayout>
+  );
+}
 
-    // Blokir jika ditolak
-    if (userProfile.status_akun === 'Ditolak') return <AkunDitolak />;
-
-    // Jika status BUKAN 'Aktif' atau TIDAK PUNYA Role, larang masuk!
-    if (userProfile.status_akun !== 'Aktif' || !userProfile.role_id) {
-      return <MenungguVerifikasi />;
-    }
-
-    // Jika lolos semua pengecekan, berarti status == 'Aktif' DAN punya role_id
-    const hasPerm = (perm: string) => userProfile?.master_role?.permissions?.includes(perm) || false;
-
-    return (
-      <AdminLayout userProfile={userProfile}>
-        <Routes>
-          {hasPerm('akses_induk') && <Route path="/" element={<SantriPage />} />}
-          {hasPerm('validasi_pengajuan') && <Route path="/review" element={<AdminReview />} />}
-          {hasPerm('akses_takziran') && <Route path="/takziran" element={<TakziranDashboard />} />}
-          {hasPerm('kelola_pengguna') && <Route path="/pengaturan" element={<PengaturanSistem />} />}
-          <Route path="*" element={<div className="p-10 text-center font-bold text-gray-500">Anda tidak memiliki hak akses ke halaman ini.</div>} />
-        </Routes>
-      </AdminLayout>
-    );
-  };
-
+export default function App() {
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/pendaftaran" element={<PublicPendaftaran />} />
         <Route path="/cek-data" element={<CekDataPublik />} />
         <Route path="/s" element={<PortalSantri />} />
-        <Route path="/*" element={renderProtectedRoutes()} />
+        <Route path="/*" element={<ProtectedApp />} />
       </Routes>
     </BrowserRouter>
   );

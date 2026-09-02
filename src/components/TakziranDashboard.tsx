@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import { supabase } from '../lib/supabase';
-import { PenTool, History, Settings, Search, Calendar, FileText, CheckCircle, Save, Plus, Trash2, CheckSquare, Square, ShieldAlert, AlertCircle, UserSearch, MessageCircle } from 'lucide-react';
+import { getTakziranStudents } from '../lib/securityApi';
+import type { TakziranStudentSummary } from '../types/security';
+import { PenTool, History, Settings, Search, Calendar, FileText, CheckCircle, Save, Plus, Trash2, CheckSquare, Square, ShieldAlert, AlertCircle, UserSearch } from 'lucide-react';
 
 const getTodayDate = () => new Date().toISOString().split('T')[0];
 const getCurrentMonth = () => new Date().toISOString().slice(0, 7); 
@@ -29,7 +31,7 @@ export default function TakziranDashboard() {
   const [notification, setNotification] = useState<{type: 'success'|'error', msg: string} | null>(null);
 
   const [jenisList, setJenisList] = useState<any[]>([]);
-  const [santriList, setSantriList] = useState<any[]>([]);
+  const [santriList, setSantriList] = useState<TakziranStudentSummary[]>([]);
   const [tunggakanList, setTunggakanList] = useState<any[]>([]);
   
   const [formData, setFormData] = useState({ jenis_id: '', tgl_melanggar: getTodayDate(), keterangan: '' });
@@ -59,12 +61,12 @@ export default function TakziranDashboard() {
 
   useEffect(() => {
     const fetchInitialData = async () => {
-      const { data: jenis } = await supabase.from('master_jenis').select('*').order('nama');
+      const [{ data: jenis }, santri] = await Promise.all([
+        supabase.from('master_jenis').select('*').order('nama'),
+        getTakziranStudents(null),
+      ]);
       setJenisList(jenis || []);
-      
-      // Mengambil kolom no_hp_wali juga untuk keperluan Broadcast WhatsApp
-      const { data: santri } = await supabase.from('santri').select('id, nama_lengkap, kelas, asrama, no_hp_wali').eq('status', 'Aktif').order('nama_lengkap');
-      setSantriList(santri || []);
+      setSantriList(santri);
 
       fetchTunggakan();
     };
@@ -198,23 +200,6 @@ export default function TakziranDashboard() {
     }
   };
 
-  // Fungsi Kirim WhatsApp ke Wali
-  const handleSendWA = () => {
-    const s = santriList.find(x => x.id === riwayatSantriId);
-    if (!s) return;
-    const phone = s.no_hp_wali;
-    if (!phone) return alert('Nomor HP Wali kosong! Silakan lengkapi data santri ini di Buku Induk.');
-    
-    let formattedPhone = phone.replace(/\D/g, '');
-    if (formattedPhone.startsWith('0')) formattedPhone = '62' + formattedPhone.substring(1);
-    
-    // Nanti route "/wali" akan kita buat di tahap selanjutnya
-    const link = `${window.location.origin}/wali?id=${s.id}`;
-    const text = `Assalamu'alaikum Bapak/Ibu Wali Santri dari ananda *${s.nama_lengkap}*.\n\nBerikut adalah link laporan kedisiplinan dan absensi ananda bulan ini:\n${link}\n\nMohon kerjasamanya untuk senantiasa memantau perkembangan ananda. Terima kasih.`;
-    
-    window.open(`https://wa.me/${formattedPhone}?text=${encodeURIComponent(text)}`, '_blank');
-  };
-
   return (
     <div className="bg-white md:rounded-2xl md:shadow-xl border-gray-200 overflow-hidden min-h-[85vh] flex flex-col md:m-4 md:border">
       {/* HEADER NAVIGASI */}
@@ -266,7 +251,7 @@ export default function TakziranDashboard() {
               <div className="flex flex-col sm:flex-row gap-3 mb-4">
                 <div className="relative flex-1">
                   <Search className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
-                  <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Cari santri aktif..." className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-300 bg-gray-50 outline-none font-medium" />
+                  <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Cari santri..." className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-300 bg-gray-50 outline-none font-medium" />
                 </div>
                 <select value={filterKelas} onChange={e => setFilterKelas(e.target.value)} className="p-2.5 rounded-xl border border-gray-300 bg-gray-50 outline-none font-medium sm:w-40">
                   <option value="">Semua Kelas</option>
@@ -351,7 +336,7 @@ export default function TakziranDashboard() {
                   onChange={e => setRiwayatSantriId(e.target.value)} 
                   className="w-full border-gray-300 p-3 rounded-xl bg-gray-50 border outline-none font-semibold text-gray-800 focus:ring-2 focus:ring-emerald-500"
                 >
-                  <option value="">-- Ketik / Pilih Nama Santri Aktif --</option>
+                  <option value="">-- Ketik / Pilih Nama Santri --</option>
                   {santriList.map(s => <option key={s.id} value={s.id}>{s.nama_lengkap} ({s.kelas || '-'})</option>)}
                 </select>
               </div>
@@ -379,13 +364,6 @@ export default function TakziranDashboard() {
                      </div>
                    </div>
 
-                   {/* TOMBOL BARU: GENERATE WA LINK KEPADA WALI */}
-                   <button 
-                     onClick={handleSendWA}
-                     className="flex items-center gap-2 bg-gradient-to-r from-[#25D366] to-[#128C7E] hover:from-[#128C7E] hover:to-[#075E54] text-white px-4 py-2.5 rounded-xl text-sm font-bold shadow-md transition-all"
-                   >
-                     <MessageCircle className="w-4 h-4"/> Bagikan ke WA Wali
-                   </button>
                 </div>
 
                 <div className="overflow-x-auto">

@@ -1,11 +1,17 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
+import {
+  getOrCreateWaliToken,
+  rotateWaliToken,
+  setWaliAccessStatus,
+} from '../lib/securityApi';
 import type { Santri } from '../types';
+import type { RolePermission } from '../types/security';
 import Papa from 'papaparse';
 import { 
   Search, Users, Plus, X, Save, Upload, FileText,
   ChevronUp, ChevronDown, CheckCircle, AlertCircle, RefreshCw, AlertTriangle,
-  Trash2, Edit, CheckSquare, Clock, Link as LinkIcon, Bell
+  Trash2, Edit, CheckSquare, Clock, Link as LinkIcon, Bell, Copy, KeyRound
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -207,22 +213,118 @@ const FormFields = ({
 // =========================================================================
 // 2. KOMPONEN BARIS TABEL (React.memo)
 // =========================================================================
+export function WaliAccessPanel({
+  santriId,
+  namaSantri,
+  canEdit,
+}: {
+  santriId: string;
+  namaSantri: string;
+  canEdit: boolean;
+}) {
+  const [token, setToken] = useState('');
+  const [loadingToken, setLoadingToken] = useState(false);
+  const [notice, setNotice] = useState('');
+  const portalLink = token ? `${window.location.origin}/s#${token}` : '';
+
+  const showToken = async () => {
+    setLoadingToken(true);
+    setNotice('');
+    try {
+      setToken(await getOrCreateWaliToken(santriId));
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Tautan wali tidak dapat dimuat.');
+    } finally {
+      setLoadingToken(false);
+    }
+  };
+
+  const copyLink = async () => {
+    if (!portalLink) return;
+    await navigator.clipboard.writeText(portalLink);
+    setNotice('Tautan siap dikirim kepada wali.');
+  };
+
+  const rotateToken = async () => {
+    if (!window.confirm('Buat tautan baru? Tautan lama akan langsung mati.')) return;
+    setLoadingToken(true);
+    try {
+      setToken(await rotateWaliToken(santriId));
+      setNotice('Tautan baru dibuat. Tautan lama tidak berlaku lagi.');
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Tautan tidak dapat dibuat ulang.');
+    } finally {
+      setLoadingToken(false);
+    }
+  };
+
+  const changeStatus = async (active: boolean) => {
+    if (!active && !window.confirm('Nonaktifkan akses wali untuk santri ini?')) return;
+    setLoadingToken(true);
+    try {
+      await setWaliAccessStatus(santriId, active);
+      if (active) {
+        setToken(await getOrCreateWaliToken(santriId));
+        setNotice('Akses wali diaktifkan kembali.');
+      } else {
+        setToken('');
+        setNotice('Akses dinonaktifkan tanpa menghapus data santri.');
+      }
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Status akses tidak dapat diubah.');
+    } finally {
+      setLoadingToken(false);
+    }
+  };
+
+  return (
+    <section className="space-y-4" aria-label={`Akses wali ${namaSantri}`}>
+      <div>
+        <p className="font-bold text-gray-800">{namaSantri}</p>
+        <p className="text-xs text-gray-500">Token hanya ditampilkan melalui fungsi database yang terlindungi.</p>
+      </div>
+      {portalLink ? (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+          <p className="break-all font-mono text-sm text-emerald-900">{portalLink}</p>
+          <button type="button" onClick={copyLink} className="mt-3 flex items-center gap-2 rounded-lg bg-emerald-700 px-3 py-2 text-sm font-bold text-white">
+            <Copy className="h-4 w-4" /> Salin tautan
+          </button>
+        </div>
+      ) : (
+        <button type="button" disabled={loadingToken} onClick={showToken} className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">
+          Tampilkan tautan
+        </button>
+      )}
+      {canEdit && (
+        <div className="flex flex-wrap gap-2">
+          <button type="button" disabled={loadingToken} onClick={rotateToken} className="rounded-lg bg-amber-500 px-3 py-2 text-sm font-bold text-white disabled:opacity-50">Buat ulang tautan</button>
+          <button type="button" disabled={loadingToken} onClick={() => changeStatus(false)} className="rounded-lg bg-red-600 px-3 py-2 text-sm font-bold text-white disabled:opacity-50">Nonaktifkan akses</button>
+          <button type="button" disabled={loadingToken} onClick={() => changeStatus(true)} className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-bold text-white disabled:opacity-50">Aktifkan akses</button>
+        </div>
+      )}
+      {notice && <p role="status" className="rounded-lg bg-slate-100 p-3 text-sm font-semibold text-slate-700">{notice}</p>}
+    </section>
+  );
+}
+
 const SantriTableRow = React.memo(({
-  s, isSelected, onSelect, onEdit, onCopyLink
+  s, isSelected, canSelect, canEdit, onSelect, onEdit, onManageAccess
 }: {
   s: Santri & { catatan?: string },
   isSelected: boolean,
+  canSelect: boolean,
+  canEdit: boolean,
   onSelect: (id: string) => void,
   onEdit: (s: Santri & { catatan?: string }) => void,
-  onCopyLink: (kode: string) => void
+  onManageAccess: (s: Santri & { catatan?: string }) => void
 }) => {
   return (
     <tr className={`transition-colors ${isSelected ? 'bg-emerald-100/50' : 'hover:bg-emerald-50'}`}>
-      <td className="p-3 text-center"><input type="checkbox" className="w-4 h-4 cursor-pointer" checked={isSelected} onChange={() => onSelect(s.id)} /></td>
+      <td className="p-3 text-center">{canSelect && <input type="checkbox" className="w-4 h-4 cursor-pointer" checked={isSelected} onChange={() => onSelect(s.id)} />}</td>
       <td className="p-3">
         <div className="flex items-center gap-2">
-          <button onClick={() => onEdit(s)} className="font-bold text-emerald-700 hover:underline text-left">{s.nama_lengkap}</button>
-          <button onClick={() => onCopyLink(s.kode_unik || '')} title="Copy Link Portal Santri" className="text-gray-400 hover:text-blue-600 transition-colors"><LinkIcon className="w-4 h-4"/></button>
+          {canEdit ? <button onClick={() => onEdit(s)} className="font-bold text-emerald-700 hover:underline text-left">{s.nama_lengkap}</button> : <strong className="text-emerald-800">{s.nama_lengkap}</strong>}
+          {canEdit && <button onClick={() => onManageAccess(s)} aria-label={`Kelola akses wali ${s.nama_lengkap}`} title="Kelola akses wali" className="text-gray-400 hover:text-blue-600 transition-colors"><KeyRound className="w-4 h-4"/></button>}
         </div>
       </td>
       <td className="p-3">{s.nis || '-'}</td>
@@ -279,7 +381,10 @@ const BULK_EDIT_FIELDS = [
   { key: 'no_hp_wali', label: 'No. HP Wali (WA)' }, { key: 'no_hp_santri', label: 'No. HP Santri' }, { key: 'catatan', label: 'Catatan Khusus' },
 ];
 
-export default function SantriPage() {
+export default function SantriPage({ permissions = [] }: { permissions?: RolePermission[] }) {
+  const canEdit = permissions.includes('edit_induk');
+  const canDelete = permissions.includes('hapus_induk');
+  const canSelect = canEdit || canDelete;
   const [data, setData] = useState<(Santri & { catatan?: string })[]>([]);
   const [loading, setLoading] = useState(true);
   const [pendingReviewCount, setPendingReviewCount] = useState(0);
@@ -299,6 +404,7 @@ export default function SantriPage() {
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedSantri, setSelectedSantri] = useState<(Santri & { catatan?: string }) | null>(null); 
+  const [accessStudent, setAccessStudent] = useState<(Santri & { catatan?: string }) | null>(null);
   const [formData, setFormData] = useState<Partial<Santri> & { catatan?: string }>(initialFormState);
   
   const [message, setMessage] = useState<{ type: 'success' | 'error' | 'info', text: string } | null>(null);
@@ -396,26 +502,25 @@ export default function SantriPage() {
   };
 
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!canSelect) return;
     if (e.target.checked) setSelectedIds([...new Set([...selectedIds, ...paginatedData.map(s => s.id)])]);
     else setSelectedIds(selectedIds.filter(id => !paginatedData.map(s => s.id).includes(id)));
   };
 
   const handleSelectOne = useCallback((id: string) => {
+    if (!canSelect) return;
     setSelectedIds((prev: string[]) => {
       if (prev.includes(id)) return prev.filter((i: string) => i !== id);
       return [...prev, id];
     });
-  }, []);
+  }, [canSelect]);
 
-  const handleEditClick = useCallback((s: Santri & { catatan?: string }) => { setSelectedSantri(s); }, []);
-  
-  const handleCopyLink = useCallback((kode: string) => {
-    const url = `${window.location.origin}/s/${kode}`;
-    navigator.clipboard.writeText(url);
-    showMessage('info', `Link Portal berhasil di-copy! (${url})`, 3000);
-  }, [showMessage]);
+  const handleEditClick = useCallback((s: Santri & { catatan?: string }) => {
+    if (canEdit) setSelectedSantri(s);
+  }, [canEdit]);
 
   const handleBulkDelete = async () => {
+    if (!canDelete) return;
     if (!window.confirm(`Yakin ingin menghapus ${selectedIds.length} santri secara permanen?`)) return;
     const { error } = await supabase.from('santri').delete().in('id', selectedIds);
     if (!error) { showMessage('success', `${selectedIds.length} data berhasil dihapus.`); setSelectedIds([]); fetchData(); }
@@ -423,6 +528,7 @@ export default function SantriPage() {
 
   const handleBulkEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canEdit) return;
     if (!window.confirm(`Yakin mengubah kolom [${bulkEditField}] menjadi "${bulkEditValue}" untuk ${selectedIds.length} santri?`)) return;
     const payload = { [bulkEditField]: bulkEditValue, status_sinkronisasi: 'Dimodifikasi Manual' };
     const { error } = await supabase.from('santri').update(payload).in('id', selectedIds);
@@ -511,17 +617,17 @@ export default function SantriPage() {
   const executeImport = async () => {
     setIsImporting(true); let successCount = 0; let fails: {payload: any, error: string}[] = [];
     for (const santri of importReady) {
-      const payload: any = sanitizePayload({ ...santri, kode_unik: 'STR-' + Math.random().toString(36).substring(2, 8).toUpperCase() + Date.now().toString(36).slice(-3) });
+      const payload: any = sanitizePayload({ ...santri });
       const { error } = await supabase.from('santri').insert([payload]);
       if (!error) successCount++; else fails.push({ payload, error: error.message });
     }
     for (const conflict of importConflicts) {
-      if (conflict.action === 'replace') {
+      if (conflict.action === 'replace' && canDelete) {
         const payload: any = sanitizePayload({ ...conflict.importedData });
         const { error } = await supabase.from('santri').update(payload).eq('id', conflict.existingData.id);
         if (!error) successCount++; else fails.push({ payload, error: error.message });
       } else if (conflict.action === 'keep_both') {
-        const payload: any = sanitizePayload({ ...conflict.importedData, kode_unik: 'STR-' + Math.random().toString(36).substring(2, 8).toUpperCase() + Date.now().toString(36).slice(-3) });
+        const payload: any = sanitizePayload({ ...conflict.importedData });
         const { error } = await supabase.from('santri').insert([payload]);
         if (!error) successCount++; else fails.push({ payload, error: error.message });
       }
@@ -536,7 +642,7 @@ export default function SantriPage() {
     setIsImporting(true); let successCount = 0; let newFails: {payload: any, error: string}[] = [];
     for (const item of failedImports) {
       const payload = sanitizePayload({ ...item.payload });
-      const randFix = Math.random().toString(36).substring(2, 6).toUpperCase();
+      const randFix = crypto.randomUUID().slice(0, 4).toUpperCase();
       if (payload.nis && payload.nis !== null) payload.nis = `${payload.nis}-DUP${randFix}`;
       if (payload.nisn && payload.nisn !== null) payload.nisn = `${payload.nisn}-DUP${randFix}`;
       if (payload.nik && payload.nik !== null) payload.nik = `${payload.nik}-DUP${randFix}`;
@@ -561,7 +667,8 @@ export default function SantriPage() {
 
   const handleSubmitAdd = async (e: React.FormEvent) => {
     e.preventDefault();
-    const payload = sanitizePayload({ ...formData, kode_unik: 'STR-' + Math.random().toString(36).substring(2, 8).toUpperCase(), status_sinkronisasi: 'Belum Sinkron' });
+    if (!canEdit) return;
+    const payload = sanitizePayload({ ...formData, status_sinkronisasi: 'Belum Sinkron' });
     const { error } = await supabase.from('santri').insert([payload]);
     if (!error) { showMessage('success', `Data berhasil disimpan!`); setFormData({ ...initialFormState, tanggal_masuk: getCurrentDateTimeLocal() }); setIsAddModalOpen(false); fetchData(); } 
     else showMessage('error', 'Gagal menyimpan: ' + error.message);
@@ -569,6 +676,7 @@ export default function SantriPage() {
 
   const handleSubmitEdit = async (e: React.FormEvent) => {
     e.preventDefault(); if (!selectedSantri) return;
+    if (!canEdit) return;
     const { error } = await supabase.from('santri').update(sanitizePayload(selectedSantri)).eq('id', selectedSantri.id);
     if (!error) { showMessage('success', `Data berhasil diperbarui!`); setSelectedSantri(null); fetchData(); } 
     else showMessage('error', 'Gagal memperbarui: ' + error.message);
@@ -613,7 +721,7 @@ export default function SantriPage() {
             </div>
           </div>
           
-          <Link to="/admin-review" className="relative flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-lg text-sm whitespace-nowrap shadow-sm transition-all">
+          <Link to="/review" aria-label="Buka antrean review" className="relative flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-lg text-sm whitespace-nowrap shadow-sm transition-all">
             <Bell className="w-4 h-4" />
             {pendingReviewCount > 0 && (
               <span className="absolute -top-2 -right-2 bg-red-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full animate-bounce">
@@ -622,14 +730,17 @@ export default function SantriPage() {
             )}
           </Link>
 
-          <input type="file" accept=".csv, .xlsx, .xls" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
-          <button onClick={() => {setMessage(null); fileInputRef.current?.click();}} className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-sm whitespace-nowrap">
-            <Upload className="w-4 h-4" /> Import
-          </button>
-
-          <button onClick={() => {setMessage(null); setIsAddModalOpen(true);}} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg text-sm whitespace-nowrap">
-            <Plus className="w-4 h-4" />
-          </button>
+          {canEdit && (
+            <>
+              <input type="file" accept=".csv, .xlsx, .xls" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
+              <button onClick={() => {setMessage(null); fileInputRef.current?.click();}} className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-sm whitespace-nowrap">
+                <Upload className="w-4 h-4" /> Import
+              </button>
+              <button aria-label="Tambah data santri" onClick={() => {setMessage(null); setIsAddModalOpen(true);}} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg text-sm whitespace-nowrap">
+                <Plus className="w-4 h-4" />
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -640,12 +751,12 @@ export default function SantriPage() {
             <CheckSquare className="w-5 h-5"/> {selectedIds.length} Data Terpilih
           </div>
           <div className="flex gap-2">
-            <button onClick={() => {setBulkEditValue(''); setIsBulkEditModalOpen(true);}} className="flex items-center gap-2 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded text-xs font-bold">
+            {canEdit && <button onClick={() => {setBulkEditValue(''); setIsBulkEditModalOpen(true);}} className="flex items-center gap-2 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded text-xs font-bold">
               <Edit className="w-3 h-3"/> Ubah Massal
-            </button>
-            <button onClick={handleBulkDelete} className="flex items-center gap-2 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded text-xs font-bold">
+            </button>}
+            {canDelete && <button aria-label="Hapus data terpilih" onClick={handleBulkDelete} className="flex items-center gap-2 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded text-xs font-bold">
               <Trash2 className="w-3 h-3"/> Hapus Massal
-            </button>
+            </button>}
           </div>
         </div>
       )}
@@ -662,7 +773,7 @@ export default function SantriPage() {
           <thead className="bg-gray-100 text-gray-700 font-bold sticky top-0 z-10">
             <tr>
               <th className="p-3 border-b text-center w-10">
-                <input type="checkbox" className="w-4 h-4 cursor-pointer" checked={paginatedData.length > 0 && paginatedData.every(s => selectedIds.includes(s.id))} onChange={handleSelectAll} />
+                {canSelect && <input aria-label="Pilih semua data pada halaman" type="checkbox" className="w-4 h-4 cursor-pointer" checked={paginatedData.length > 0 && paginatedData.every(s => selectedIds.includes(s.id))} onChange={handleSelectAll} />}
               </th>
               {[
                 'Nama Lengkap', 'NIS', 'Kelas', 'Asrama', 'Status', 'L/P', 'Tahun Masuk', 'Tahun Keluar', 
@@ -684,7 +795,7 @@ export default function SantriPage() {
           <tbody className="divide-y divide-gray-100">
             {loading ? <tr><td colSpan={27} className="p-8 text-center text-gray-500"><div className="flex justify-center items-center gap-2"><RefreshCw className="animate-spin w-5 h-5"/> Memuat data...</div></td></tr> : null}
             {!loading && paginatedData.map((s) => (
-              <SantriTableRow key={s.id} s={s} isSelected={selectedIds.includes(s.id)} onSelect={handleSelectOne} onEdit={handleEditClick} onCopyLink={handleCopyLink} />
+              <SantriTableRow key={s.id} s={s} isSelected={selectedIds.includes(s.id)} canSelect={canSelect} canEdit={canEdit} onSelect={handleSelectOne} onEdit={handleEditClick} onManageAccess={setAccessStudent} />
             ))}
           </tbody>
         </table>
@@ -795,7 +906,7 @@ export default function SantriPage() {
                         </div>
                         <div className="flex bg-gray-100 p-1 rounded-lg border">
                           <label className={`cursor-pointer px-3 py-1.5 text-xs font-semibold rounded-md ${conflict.action === 'skip' ? 'bg-white shadow text-gray-800' : 'text-gray-500'}`}><input type="radio" className="hidden" checked={conflict.action === 'skip'} onChange={() => setImportConflicts(prev => prev.map(c => c.id === conflict.id ? { ...c, action: 'skip' } : c))} />Abaikan</label>
-                          <label className={`cursor-pointer px-3 py-1.5 text-xs font-semibold rounded-md ${conflict.action === 'replace' ? 'bg-amber-100 shadow text-amber-800' : 'text-gray-500'}`}><input type="radio" className="hidden" checked={conflict.action === 'replace'} onChange={() => setImportConflicts(prev => prev.map(c => c.id === conflict.id ? { ...c, action: 'replace' } : c))} />Timpa</label>
+                          {canDelete && <label className={`cursor-pointer px-3 py-1.5 text-xs font-semibold rounded-md ${conflict.action === 'replace' ? 'bg-amber-100 shadow text-amber-800' : 'text-gray-500'}`}><input type="radio" className="hidden" checked={conflict.action === 'replace'} onChange={() => setImportConflicts(prev => prev.map(c => c.id === conflict.id ? { ...c, action: 'replace' } : c))} />Timpa</label>}
                           <label className={`cursor-pointer px-3 py-1.5 text-xs font-semibold rounded-md ${conflict.action === 'keep_both' ? 'bg-blue-100 shadow text-blue-800' : 'text-gray-500'}`}><input type="radio" className="hidden" checked={conflict.action === 'keep_both'} onChange={() => setImportConflicts(prev => prev.map(c => c.id === conflict.id ? { ...c, action: 'keep_both' } : c))} />Simpan Keduanya</label>
                         </div>
                       </div>
@@ -826,7 +937,7 @@ export default function SantriPage() {
       )}
 
       {/* MODAL TAMBAH & EDIT */}
-      {isAddModalOpen && (
+      {isAddModalOpen && canEdit && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-4xl max-h-[90vh] flex flex-col rounded-2xl shadow-2xl overflow-hidden">
             <div className="px-6 py-4 border-b flex justify-between items-center bg-gray-50"><h3 className="text-lg font-bold text-emerald-800 flex items-center gap-2"><Plus className="w-5 h-5"/> Tambah Data Santri Baru</h3><button onClick={() => setIsAddModalOpen(false)} className="text-gray-400 hover:text-red-500"><X className="w-6 h-6"/></button></div>
@@ -836,12 +947,24 @@ export default function SantriPage() {
         </div>
       )}
 
-      {selectedSantri && (
+      {selectedSantri && canEdit && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-4xl max-h-[90vh] flex flex-col rounded-2xl shadow-2xl overflow-hidden ring-4 ring-emerald-500/20">
             <div className="px-6 py-4 border-b flex justify-between items-center bg-emerald-50"><h3 className="text-lg font-bold text-emerald-800 flex items-center gap-2"><Edit className="w-5 h-5"/> Detail & Edit Data: {selectedSantri.nama_lengkap}</h3><button onClick={() => setSelectedSantri(null)} className="text-gray-400 hover:text-red-500"><X className="w-6 h-6"/></button></div>
             <div className="p-6 overflow-y-auto"><form id="editForm" onSubmit={handleSubmitEdit}><FormFields dataTarget={selectedSantri} onChange={handleInputChange} onRegionChange={handleRegionChange} /></form></div>
             <div className="px-6 py-4 border-t bg-gray-50 flex justify-end gap-2"><button type="button" onClick={() => setSelectedSantri(null)} className="px-4 py-2 text-gray-600 bg-gray-200 rounded-lg text-sm font-semibold">Batal</button><button type="submit" form="editForm" className="px-4 py-2 flex items-center gap-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold"><Save className="w-4 h-4"/> Simpan Perubahan</button></div>
+          </div>
+        </div>
+      )}
+
+      {accessStudent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="mb-5 flex items-center justify-between border-b pb-3">
+              <h3 className="flex items-center gap-2 text-lg font-bold text-emerald-900"><LinkIcon className="h-5 w-5" /> Akses Portal Wali</h3>
+              <button type="button" aria-label="Tutup pengelolaan akses wali" onClick={() => setAccessStudent(null)} className="text-gray-400 hover:text-red-600"><X className="h-6 w-6" /></button>
+            </div>
+            <WaliAccessPanel santriId={accessStudent.id} namaSantri={accessStudent.nama_lengkap} canEdit={canEdit} />
           </div>
         </div>
       )}
