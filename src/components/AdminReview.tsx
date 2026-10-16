@@ -78,7 +78,7 @@ export default function AdminReview() {
     setIsSubmitting(true);
     try {
       // 1. Ambil data hasil editan admin
-      const finalData = { ...editData };
+      const finalData: Record<string, any> = { ...editData };
       
       // 2. Cegah error: Hapus field bawaan pengajuan & non-kolom santri yang dilarang masuk ke tabel santri utama
       delete finalData.id;
@@ -101,28 +101,35 @@ export default function AdminReview() {
         }
       });
 
-      // 4. Eksekusi Insert / Update dengan penangkapan Error Supabase
-      if (selectedItem.jenis_pengajuan === 'Baru') {
-        const kodeBaru = 'STR-' + Math.random().toString(36).substring(2, 8).toUpperCase() + Date.now().toString(36).slice(-3);
-        const payload = { ...finalData, kode_unik: kodeBaru, status_sinkronisasi: 'Belum Sinkron' };
-        
-        // PENTING: Periksa apakah ada error saat insert
-        const { error } = await supabase.from('santri').insert([payload]);
-        if (error) throw new Error(error.message); 
-        
-      } else {
-        // PENTING: Periksa apakah ada error saat update
-        const { error } = await supabase.from('santri').update(finalData).eq('id', selectedItem.santri_id);
-        if (error) throw new Error(error.message);
+      // 4. Eksekusi melalui RPC PostgreSQL Transaksional (ACID)
+      const { error: rpcErr } = await supabase.rpc('approve_santri_submission', {
+        p_submission_id: selectedItem.id,
+        p_final_data: finalData
+      });
+
+      if (rpcErr) {
+        // Fallback jika stored procedure belum dimigrasi di database Supabase user (error code 42883)
+        const isMissingRpc = rpcErr.code === '42883' || (rpcErr.message?.toLowerCase().includes('function') && rpcErr.message?.toLowerCase().includes('does not exist'));
+        if (isMissingRpc) {
+          console.warn("RPC approve_santri_submission belum terpasang, menjalankan mutasi fallback...");
+          if (selectedItem.jenis_pengajuan === 'Baru') {
+            const kodeBaru = 'STR-' + Math.random().toString(36).substring(2, 8).toUpperCase() + Date.now().toString(36).slice(-3);
+            const payload = { ...finalData, kode_unik: kodeBaru, status_sinkronisasi: 'Belum Sinkron' };
+            const { error: insErr } = await supabase.from('santri').insert([payload]);
+            if (insErr) throw new Error(insErr.message);
+          } else {
+            const { error: updErr } = await supabase.from('santri').update(finalData).eq('id', selectedItem.santri_id);
+            if (updErr) throw new Error(updErr.message);
+          }
+          const { error: errUpdateStatus } = await supabase.from('pengajuan_santri').update({ 
+            status_pengajuan: 'Disetujui', 
+            data_pengajuan: finalData 
+          }).eq('id', selectedItem.id);
+          if (errUpdateStatus) throw new Error(errUpdateStatus.message);
+        } else {
+          throw new Error(rpcErr.message);
+        }
       }
-      
-      // 5. Jika sukses masuk ke tabel santri, barulah ubah status pengajuannya
-      const { error: errUpdateStatus } = await supabase.from('pengajuan_santri').update({ 
-        status_pengajuan: 'Disetujui', 
-        data_pengajuan: finalData 
-      }).eq('id', selectedItem.id);
-      
-      if (errUpdateStatus) throw new Error(errUpdateStatus.message);
 
       alert('Alhamdulillah! Data Berhasil Disetujui dan Masuk ke Buku Induk Santri.');
       setSelectedItem(null);
@@ -143,10 +150,24 @@ export default function AdminReview() {
     
     setIsSubmitting(true);
     try {
-      await supabase.from('pengajuan_santri').update({ 
-        status_pengajuan: 'Ditolak', 
-        catatan_admin: alasan 
-      }).eq('id', selectedItem.id);
+      const { error: rpcErr } = await supabase.rpc('reject_santri_submission', {
+        p_submission_id: selectedItem.id,
+        p_catatan_admin: alasan || null
+      });
+
+      if (rpcErr) {
+        // Fallback jika stored procedure belum dimigrasi
+        const isMissingRpc = rpcErr.code === '42883' || (rpcErr.message?.toLowerCase().includes('function') && rpcErr.message?.toLowerCase().includes('does not exist'));
+        if (isMissingRpc) {
+          const { error: updErr } = await supabase.from('pengajuan_santri').update({ 
+            status_pengajuan: 'Ditolak', 
+            catatan_admin: alasan 
+          }).eq('id', selectedItem.id);
+          if (updErr) throw new Error(updErr.message);
+        } else {
+          throw new Error(rpcErr.message);
+        }
+      }
       
       alert('Data Ditolak!');
       setSelectedItem(null); 
