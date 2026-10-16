@@ -3,8 +3,10 @@ import { useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { 
   User, Calendar, CreditCard, Award, FileText, Save, CheckCircle2, 
-  AlertTriangle, ShieldCheck, BookOpen, Edit, Camera, Clock, X
+  AlertTriangle, ShieldCheck, BookOpen, Edit, Camera, Clock, X,
+  Wallet, Receipt, Building2, ExternalLink, MessageCircle, Info
 } from 'lucide-react';
+import type { SantriTagihan } from '../types';
 
 export default function PortalSantri() {
   const { kode } = useParams<{ kode: string }>();
@@ -19,6 +21,8 @@ export default function PortalSantri() {
   const [catatanList, setCatatanList] = useState<any[]>([]);
   const [prestasiList, setPrestasiList] = useState<any[]>([]);
   const [hasPendingRequest, setHasPendingRequest] = useState(false);
+  const [tagihanList, setTagihanList] = useState<SantriTagihan[]>([]);
+  const [kategoriFilter, setKategoriFilter] = useState<string>('Semua');
   
   // Form Usulan Perubahan Data
   const [editForm, setEditForm] = useState<any>({});
@@ -109,6 +113,18 @@ export default function PortalSantri() {
         if (presError) console.warn("Gagal ambil prestasi:", presError.message);
         setPrestasiList(presData || []);
 
+        // Fetch Riwayat Keuangan & Tagihan
+        const { data: tagihanData, error: tagihanError } = await supabase
+          .from('santri_tagihan')
+          .select('*')
+          .eq('santri_id', sData.id)
+          .order('created_at', { ascending: false });
+
+        if (tagihanError) {
+          console.warn("Info Keuangan (tabel belum siap atau kosong):", tagihanError.message);
+        }
+        setTagihanList((tagihanData as SantriTagihan[]) || []);
+
       } catch (err: any) {
         console.error("Gagal memuat portal:", err.message);
       } finally {
@@ -198,6 +214,43 @@ export default function PortalSantri() {
     );
   }
 
+  // Perhitungan Keuangan Riil
+  const totalTagihan = tagihanList.reduce((acc, curr) => acc + (Number(curr.nominal) || 0), 0);
+  const totalTerbayar = tagihanList.reduce((acc, curr) => acc + (Number(curr.jumlah_terbayar) || 0), 0);
+  const totalTunggakan = Math.max(0, totalTagihan - totalTerbayar);
+  const hasTunggakan = totalTunggakan > 0;
+
+  const formatRupiah = (num: number) => {
+    return new Intl.NumberFormat('id-ID', {
+      style: 'currency',
+      currency: 'IDR',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(num);
+  };
+
+  const handleKonfirmasiWa = (item?: SantriTagihan) => {
+    // Nomor layanan bendahara PP Daruttauhid Jepara
+    const nomorBendahara = '6281234567890';
+    const nama = santri?.nama_lengkap || 'Santri';
+    const nis = santri?.nis ? ` (NIS: ${santri.nis})` : '';
+    
+    let pesan = `Assalamu'alaikum Pengurus/Bendahara PP Daruttauhid Jepara.\n\nSaya wali santri dari:\nNama: *${nama}*${nis}\n`;
+    if (item) {
+      pesan += `Perihal: Konfirmasi *${item.judul}*\nNominal Tagihan: *${formatRupiah(Number(item.nominal))}*\nStatus Saat Ini: *${item.status}*\n`;
+    } else {
+      pesan += `Perihal: Konfirmasi & Pengecekan Syahriah / Tagihan\nTotal Kewajiban Berjalan: *${formatRupiah(totalTunggakan)}*\n`;
+    }
+    pesan += `\nMohon informasi petunjuk dan verifikasi pembayaran. Terima kasih.`;
+    
+    window.open(`https://wa.me/${nomorBendahara}?text=${encodeURIComponent(pesan)}`, '_blank');
+  };
+
+  const kategoriOptions = ['Semua', ...Array.from(new Set(tagihanList.map(t => t.kategori).filter(Boolean)))];
+  const filteredTagihan = kategoriFilter === 'Semua' 
+    ? tagihanList 
+    : tagihanList.filter(t => t.kategori === kategoriFilter);
+
   return (
     <div className="min-h-screen bg-[#FDFBF7] pb-12 font-sans selection:bg-amber-200">
       
@@ -260,8 +313,14 @@ export default function PortalSantri() {
         <div className="bg-white rounded-2xl shadow-sm p-1.5 flex overflow-x-auto scrollbar-hide border border-emerald-100 mb-6 sticky top-4 z-30">
           {[
             { id: 'profil', label: 'Data & Profil', icon: User },
-            { id: 'kegiatan', label: 'Kedisiplinan', icon: BookOpen, badge: logs.length },
-            { id: 'keuangan', label: 'Keuangan', icon: CreditCard },
+            { id: 'kegiatan', label: 'Kedisiplinan', icon: BookOpen, badge: logs.length ? String(logs.length) : undefined, badgeType: 'neutral' },
+            { 
+              id: 'keuangan', 
+              label: 'Keuangan', 
+              icon: CreditCard, 
+              badge: hasTunggakan ? 'Ada Tagihan' : (tagihanList.length > 0 ? 'Lunas' : undefined),
+              badgeType: hasTunggakan ? 'danger' : 'success'
+            },
             { id: 'prestasi', label: 'Catatan', icon: Award }
           ].map((tab) => (
             <button
@@ -274,7 +333,17 @@ export default function PortalSantri() {
               }`}
             >
               <tab.icon className="w-4 h-4" /> {tab.label}
-              {tab.badge ? <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${activeTab === tab.id ? 'bg-amber-400 text-emerald-900' : 'bg-amber-100 text-amber-700'}`}>{tab.badge}</span> : null}
+              {tab.badge ? (
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${
+                  tab.badgeType === 'danger'
+                    ? 'bg-rose-500 text-white'
+                    : tab.badgeType === 'success'
+                    ? 'bg-emerald-100 text-emerald-800'
+                    : (activeTab === tab.id ? 'bg-amber-400 text-emerald-900' : 'bg-amber-100 text-amber-700')
+                }`}>
+                  {tab.badge}
+                </span>
+              ) : null}
             </button>
           ))}
         </div>
@@ -455,13 +524,286 @@ export default function PortalSantri() {
 
         {/* TAB 3: Keuangan */}
         {activeTab === 'keuangan' && (
-          <div className="bg-white rounded-[2rem] shadow-sm border border-emerald-100 p-6 sm:p-8 space-y-6 animate-in fade-in duration-500">
-            <div><h3 className="text-xl font-bold text-emerald-950">Laporan Keuangan</h3><p className="text-xs text-gray-500 mt-1">Informasi syahriah & tagihan</p></div>
-            <div className="bg-gradient-to-br from-emerald-50 to-teal-50 border border-amber-200 p-6 rounded-[1.5rem] flex flex-col sm:flex-row justify-between items-center gap-4">
-              <div>
-                <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider bg-white px-2 py-1 rounded-md shadow-sm border border-emerald-100">Bulan Ini</span>
-                <h4 className="text-2xl font-black text-emerald-950 mt-3">Lunas Tanpa Tunggakan</h4>
-                <p className="text-sm text-emerald-800 mt-1 font-medium">Terima kasih telah menunaikan kewajiban tepat waktu.</p>
+          <div className="space-y-6 animate-in fade-in duration-500">
+            {/* Header Modul */}
+            <div className="bg-white rounded-[2rem] shadow-sm border border-emerald-100 p-6 sm:p-8">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                <div>
+                  <h3 className="text-xl font-bold text-emerald-950 flex items-center gap-2">
+                    <Receipt className="w-6 h-6 text-emerald-700" />
+                    Laporan Keuangan & Syahriah
+                  </h3>
+                  <p className="text-xs text-gray-500 mt-1">Transparansi kewajiban, pembayaran syahriah, dan iuran santri</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleKonfirmasiWa()}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold shadow-md shadow-emerald-900/10 transition-colors"
+                >
+                  <MessageCircle className="w-4 h-4" />
+                  Hubungi Bendahara via WA
+                </button>
+              </div>
+
+              {/* Status Banner */}
+              {tagihanList.length === 0 ? (
+                <div className="bg-blue-50 border border-blue-200 p-5 rounded-2xl flex items-start gap-3">
+                  <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="text-sm font-bold text-blue-900">Belum Ada Catatan Tagihan</h4>
+                    <p className="text-xs text-blue-700 mt-0.5 leading-relaxed">
+                      Data tagihan dan riwayat pembayaran belum diinput oleh bendahara atau sedang dalam proses rekapitulasi. Silakan hubungi pengurus jika membutuhkan informasi administrasi terkini.
+                    </p>
+                  </div>
+                </div>
+              ) : !hasTunggakan ? (
+                <div className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white p-6 rounded-2xl shadow-md shadow-emerald-900/10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center flex-shrink-0">
+                      <CheckCircle2 className="w-7 h-7 text-white" />
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-bold uppercase tracking-widest bg-emerald-700/60 px-2 py-0.5 rounded-full border border-emerald-400/40">Status Keuangan</span>
+                      <h4 className="text-xl font-black mt-1">Alhamdulillah, Bebas Tunggakan!</h4>
+                      <p className="text-xs text-emerald-100 mt-0.5">Seluruh kewajiban administrasi ananda telah lunas terselesaikan tepat waktu.</p>
+                    </div>
+                  </div>
+                  <span className="text-xs font-bold bg-white text-emerald-800 px-3 py-1.5 rounded-xl shadow-sm self-stretch sm:self-auto text-center">
+                    Lunas Tanpa Beban
+                  </span>
+                </div>
+              ) : (
+                <div className="bg-gradient-to-r from-rose-50 to-amber-50 border border-rose-200 p-6 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-full bg-rose-100 flex items-center justify-center flex-shrink-0 text-rose-700 font-black mt-0.5">
+                      <AlertTriangle className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-rose-700 bg-rose-100 px-2 py-0.5 rounded-md border border-rose-200">Perhatian Wali Santri</span>
+                      <h4 className="text-lg font-black text-rose-950 mt-1">Terdapat Tunggakan: {formatRupiah(totalTunggakan)}</h4>
+                      <p className="text-xs text-gray-600 mt-0.5">Mohon kerja samanya untuk segera menunaikan kewajiban administrasi ini.</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleKonfirmasiWa()}
+                    className="w-full sm:w-auto px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow-md shadow-rose-900/20 transition-all flex items-center justify-center gap-2"
+                  >
+                    <MessageCircle className="w-4 h-4" />
+                    Konfirmasi Pelunasan
+                  </button>
+                </div>
+              )}
+
+              {/* Tiga Kartu Ringkasan Metrik */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6">
+                <div className="bg-gray-50 border border-gray-200 rounded-2xl p-4">
+                  <div className="flex items-center justify-between text-gray-500 mb-2">
+                    <span className="text-xs font-bold uppercase tracking-wider">Total Tagihan</span>
+                    <Receipt className="w-4 h-4 text-gray-400" />
+                  </div>
+                  <p className="text-xl font-black text-gray-900">{formatRupiah(totalTagihan)}</p>
+                  <p className="text-[11px] text-gray-500 mt-1">{tagihanList.length} transaksi tercatat</p>
+                </div>
+
+                <div className="bg-emerald-50/60 border border-emerald-200 rounded-2xl p-4">
+                  <div className="flex items-center justify-between text-emerald-800 mb-2">
+                    <span className="text-xs font-bold uppercase tracking-wider">Total Terbayar</span>
+                    <Wallet className="w-4 h-4 text-emerald-600" />
+                  </div>
+                  <p className="text-xl font-black text-emerald-950">{formatRupiah(totalTerbayar)}</p>
+                  <p className="text-[11px] text-emerald-700 mt-1">telah diverifikasi bendahara</p>
+                </div>
+
+                <div className={`rounded-2xl p-4 border ${hasTunggakan ? 'bg-rose-50/70 border-rose-200' : 'bg-teal-50/60 border-teal-200'}`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className={`text-xs font-bold uppercase tracking-wider ${hasTunggakan ? 'text-rose-800' : 'text-teal-800'}`}>Sisa Tunggakan</span>
+                    {hasTunggakan ? <AlertTriangle className="w-4 h-4 text-rose-500" /> : <CheckCircle2 className="w-4 h-4 text-teal-600" />}
+                  </div>
+                  <p className={`text-xl font-black ${hasTunggakan ? 'text-rose-950' : 'text-teal-950'}`}>{formatRupiah(totalTunggakan)}</p>
+                  <p className={`text-[11px] mt-1 ${hasTunggakan ? 'text-rose-700 font-semibold' : 'text-teal-700'}`}>
+                    {hasTunggakan ? 'perlu diselesaikan' : 'nihil / lunas'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Filter & Daftar Tagihan */}
+            <div className="bg-white rounded-[2rem] shadow-sm border border-emerald-100 p-6 sm:p-8">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
+                <h4 className="text-lg font-bold text-emerald-950">Rincian Pos Tagihan & Syahriah</h4>
+                
+                {/* Filter Kategori */}
+                {kategoriOptions.length > 1 && (
+                  <div className="flex flex-wrap gap-1.5 bg-gray-50 p-1 rounded-xl border border-gray-200">
+                    {kategoriOptions.map(kat => (
+                      <button
+                        type="button"
+                        key={kat}
+                        onClick={() => setKategoriFilter(kat)}
+                        className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${
+                          kategoriFilter === kat 
+                            ? 'bg-emerald-800 text-white shadow-sm' 
+                            : 'text-gray-600 hover:text-emerald-900'
+                        }`}
+                      >
+                        {kat}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {filteredTagihan.length === 0 ? (
+                <div className="text-center py-12 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+                  <CreditCard className="w-10 h-10 text-gray-300 mx-auto mb-2" />
+                  <p className="font-semibold text-gray-600 text-sm">Tidak ada catatan tagihan untuk kategori ini.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {filteredTagihan.map((t) => {
+                    const nominal = Number(t.nominal) || 0;
+                    const terbayar = Number(t.jumlah_terbayar) || 0;
+                    const sisa = Math.max(0, nominal - terbayar);
+                    const isLunas = t.status === 'Lunas' || sisa === 0;
+
+                    return (
+                      <div 
+                        key={t.id} 
+                        className={`p-5 rounded-2xl border transition-all ${
+                          isLunas 
+                            ? 'bg-gray-50/70 border-gray-200 hover:bg-white hover:border-emerald-300' 
+                            : 'bg-rose-50/30 border-rose-200 hover:bg-white hover:border-rose-300'
+                        }`}
+                      >
+                        <div className="flex flex-col sm:flex-row justify-between sm:items-start gap-3">
+                          <div className="space-y-1">
+                            <div className="flex items-center flex-wrap gap-2">
+                              <span className="font-bold text-emerald-950 text-base">{t.judul}</span>
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 uppercase">
+                                {t.kategori || 'Syahriah'}
+                              </span>
+                              {t.periode && (
+                                <span className="text-[10px] font-medium text-gray-500 bg-white border border-gray-200 px-2 py-0.5 rounded-md">
+                                  {t.periode}
+                                </span>
+                              )}
+                            </div>
+                            
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500 pt-1">
+                              {t.jatuh_tempo && (
+                                <span className="flex items-center gap-1">
+                                  <Calendar className="w-3.5 h-3.5 text-amber-600" />
+                                  Jatuh Tempo: {new Date(t.jatuh_tempo).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                </span>
+                              )}
+                              {t.tgl_bayar_terakhir && (
+                                <span className="flex items-center gap-1">
+                                  <Clock className="w-3.5 h-3.5 text-emerald-600" />
+                                  Bayar: {new Date(t.tgl_bayar_terakhir).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                </span>
+                              )}
+                              {t.metode_pembayaran && (
+                                <span className="bg-gray-100 text-gray-700 px-1.5 py-0.5 rounded text-[10px] font-semibold">
+                                  {t.metode_pembayaran}
+                                </span>
+                              )}
+                            </div>
+
+                            {t.keterangan && (
+                              <p className="text-xs text-gray-600 italic bg-white p-2 rounded-lg border border-gray-200 mt-2">
+                                "{t.keterangan}"
+                              </p>
+                            )}
+                          </div>
+
+                          {/* Status Badge & Nominal */}
+                          <div className="flex sm:flex-col justify-between sm:items-end items-center gap-2 border-t sm:border-t-0 pt-3 sm:pt-0">
+                            <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider border ${
+                              t.status === 'Lunas' 
+                                ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                : t.status === 'Sebagian'
+                                ? 'bg-amber-100 text-amber-800 border-amber-300'
+                                : t.status === 'Gratis/Beasiswa'
+                                ? 'bg-purple-100 text-purple-800 border-purple-300'
+                                : 'bg-rose-100 text-rose-800 border-rose-300'
+                            }`}>
+                              {t.status || (isLunas ? 'Lunas' : 'Belum Lunas')}
+                            </span>
+                            
+                            <div className="text-right">
+                              <p className="text-base font-black text-gray-900">{formatRupiah(nominal)}</p>
+                              {!isLunas && terbayar > 0 && (
+                                <p className="text-[11px] text-emerald-700 font-semibold">Terbayar: {formatRupiah(terbayar)}</p>
+                              )}
+                              {!isLunas && (
+                                <p className="text-[11px] text-rose-600 font-bold">Sisa: {formatRupiah(sisa)}</p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Aksi Konfirmasi Per Tagihan jika belum lunas */}
+                        {!isLunas && (
+                          <div className="mt-3 pt-3 border-t border-rose-100 flex justify-end">
+                            <button
+                              type="button"
+                              onClick={() => handleKonfirmasiWa(t)}
+                              className="inline-flex items-center gap-1.5 text-xs font-bold text-rose-700 hover:text-rose-900 bg-rose-50 hover:bg-rose-100 px-3 py-1.5 rounded-lg transition-colors"
+                            >
+                              <MessageCircle className="w-3.5 h-3.5" />
+                              Konfirmasi Tagihan Ini via WhatsApp
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Kotak Informasi Rekening Resmi Pesantren */}
+            <div className="bg-gradient-to-br from-emerald-900 to-teal-950 text-white rounded-[2rem] p-6 sm:p-8 shadow-lg">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2.5 bg-emerald-800/80 rounded-xl border border-emerald-700">
+                  <Building2 className="w-6 h-6 text-amber-400" />
+                </div>
+                <div>
+                  <h4 className="text-base font-bold">Rekening Resmi Pembayaran</h4>
+                  <p className="text-xs text-emerald-200">Pondok Pesantren Daruttauhid Jepara</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+                <div className="bg-emerald-800/40 border border-emerald-700/60 p-4 rounded-xl backdrop-blur-sm">
+                  <span className="text-[10px] uppercase tracking-wider text-emerald-300 font-bold block mb-1">Bank Syariah Indonesia (BSI)</span>
+                  <div className="flex items-center justify-between">
+                    <p className="text-xl font-black font-mono tracking-wider text-amber-300">7123 4567 8901</p>
+                  </div>
+                  <p className="text-xs text-emerald-100 mt-1 font-medium">a.n. Yayasan Daruttauhid Jepara</p>
+                </div>
+
+                <div className="bg-emerald-800/40 border border-emerald-700/60 p-4 rounded-xl backdrop-blur-sm">
+                  <span className="text-[10px] uppercase tracking-wider text-emerald-300 font-bold block mb-1">Bank Rakyat Indonesia (BRI)</span>
+                  <div className="flex items-center justify-between">
+                    <p className="text-xl font-black font-mono tracking-wider text-amber-300">0022 0100 1234 501</p>
+                  </div>
+                  <p className="text-xs text-emerald-100 mt-1 font-medium">a.n. Pondok Pesantren Daruttauhid</p>
+                </div>
+              </div>
+
+              <div className="mt-4 pt-4 border-t border-emerald-800/80 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 text-xs text-emerald-200">
+                <p>
+                  💡 <b>Penting:</b> Cantumkan berita transfer dengan format: <code className="bg-emerald-950 px-2 py-0.5 rounded text-amber-300 font-mono">[Nama Santri] - [Kategori]</code>
+                </p>
+                <button
+                  type="button"
+                  onClick={() => handleKonfirmasiWa()}
+                  className="text-amber-400 hover:text-amber-300 font-bold flex items-center gap-1 underline underline-offset-2"
+                >
+                  Kirim Bukti Transfer <ExternalLink className="w-3.5 h-3.5" />
+                </button>
               </div>
             </div>
           </div>

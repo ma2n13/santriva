@@ -96,3 +96,20 @@ export interface SantriPrestasi {
   prestasi: string;
   created_at: string;
 }
+
+export interface SantriTagihan {
+  id: string;
+  santri_id: string;
+  judul: string;
+  kategori: string;
+  periode?: string | null;
+  nominal: number;
+  jumlah_terbayar: number;
+  status: 'Lunas' | 'Sebagian' | 'Belum Lunas' | 'Gratis/Beasiswa' | string;
+  jatuh_tempo?: string | null;
+  tgl_bayar_terakhir?: string | null;
+  metode_pembayaran?: string | null;
+  keterangan?: string | null;
+  created_at: string;
+  updated_at?: string;
+}
