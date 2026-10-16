@@ -80,11 +80,16 @@ export default function AdminReview() {
       // 1. Ambil data hasil editan admin
       const finalData = { ...editData };
       
-      // 2. Cegah error: Hapus field bawaan pengajuan yang dilarang masuk ke tabel santri utama
+      // 2. Cegah error: Hapus field bawaan pengajuan & non-kolom santri yang dilarang masuk ke tabel santri utama
       delete finalData.id;
       delete finalData.kode_unik;
       delete finalData.created_at;
       delete finalData.updated_at;
+      delete finalData.foto_profil;
+      delete finalData.santri_id;
+      delete finalData.jenis_pengajuan;
+      delete finalData.status_pengajuan;
+      delete finalData.catatan_admin;
 
       // 3. Bersihkan string kosong menjadi null (PENTING untuk mencegah error duplicate pada NIS/NIK kosong)
       Object.keys(finalData).forEach(k => {

@@ -9,7 +9,7 @@ export default function LoginPage() {
     setLoading(true);
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: window.location.origin }
+      options: { redirectTo: `${window.location.origin}/` }
     });
     if (error) {
       alert('Gagal Login: ' + error.message);

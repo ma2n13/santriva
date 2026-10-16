@@ -24,8 +24,8 @@ const SantriCard = memo(({ santri, isSelected, onToggle }: { santri: any, isSele
   );
 }, (prevProps, nextProps) => prevProps.isSelected === nextProps.isSelected);
 
-export default function TakziranDashboard() {
-  const [activeTab, setActiveTab] = useState<'input' | 'riwayat' | 'takziran' | 'pengaturan'>('input');
+export default function TakziranDashboard({ canInput = true }: { canInput?: boolean }) {
+  const [activeTab, setActiveTab] = useState<'input' | 'riwayat' | 'takziran' | 'pengaturan'>(canInput ? 'input' : 'takziran');
   const [notification, setNotification] = useState<{type: 'success'|'error', msg: string} | null>(null);
 
   const [jenisList, setJenisList] = useState<any[]>([]);
@@ -62,8 +62,8 @@ export default function TakziranDashboard() {
       const { data: jenis } = await supabase.from('master_jenis').select('*').order('nama');
       setJenisList(jenis || []);
       
-      // Mengambil kolom no_hp_wali juga untuk keperluan Broadcast WhatsApp
-      const { data: santri } = await supabase.from('santri').select('id, nama_lengkap, kelas, asrama, no_hp_wali').eq('status', 'Aktif').order('nama_lengkap');
+      // Mengambil kolom no_hp_wali dan kode_unik untuk keperluan Broadcast WhatsApp & Portal
+      const { data: santri } = await supabase.from('santri').select('id, kode_unik, nama_lengkap, kelas, asrama, no_hp_wali').eq('status', 'Aktif').order('nama_lengkap');
       setSantriList(santri || []);
 
       fetchTunggakan();
@@ -72,27 +72,44 @@ export default function TakziranDashboard() {
   }, []);
 
   useEffect(() => {
-    if (!riwayatSantriId || !riwayatMonth) {
-      setRiwayatLogs([]);
-      return;
-    }
-    const fetchRiwayat = async () => {
-      setIsFetchingRiwayat(true);
-      const [year, month] = riwayatMonth.split('-');
-      const startDate = `${riwayatMonth}-01`;
-      const endDate = new Date(parseInt(year), parseInt(month), 0).toISOString().split('T')[0];
+    let ignore = false;
 
-      const { data } = await supabase
-        .from('log_pelanggaran')
-        .select('*')
-        .eq('santri_id', riwayatSantriId)
-        .gte('tgl_melanggar', startDate)
-        .lte('tgl_melanggar', endDate);
-      
-      setRiwayatLogs(data || []);
-      setIsFetchingRiwayat(false);
+    const fetchRiwayat = async () => {
+      if (!riwayatSantriId || !riwayatMonth) {
+        setRiwayatLogs([]);
+        return;
+      }
+
+      setIsFetchingRiwayat(true);
+      try {
+        const [year, month] = riwayatMonth.split('-');
+        const startDate = `${riwayatMonth}-01`;
+        const endDate = new Date(parseInt(year), parseInt(month), 0).toISOString().split('T')[0];
+
+        const { data } = await supabase
+          .from('log_pelanggaran')
+          .select('*')
+          .eq('santri_id', riwayatSantriId)
+          .gte('tgl_melanggar', startDate)
+          .lte('tgl_melanggar', endDate);
+        
+        if (!ignore) {
+          setRiwayatLogs(data || []);
+        }
+      } catch (err: any) {
+        console.error("Gagal mengambil riwayat:", err.message);
+      } finally {
+        if (!ignore) {
+          setIsFetchingRiwayat(false);
+        }
+      }
     };
+
     fetchRiwayat();
+
+    return () => {
+      ignore = true;
+    };
   }, [riwayatSantriId, riwayatMonth]);
 
   const calendarDays = useMemo(() => {
@@ -208,8 +225,9 @@ export default function TakziranDashboard() {
     let formattedPhone = phone.replace(/\D/g, '');
     if (formattedPhone.startsWith('0')) formattedPhone = '62' + formattedPhone.substring(1);
     
-    // Nanti route "/wali" akan kita buat di tahap selanjutnya
-    const link = `${window.location.origin}/wali?id=${s.id}`;
+    // Arahkan ke rute portal santri resmi
+    const portalKode = s.kode_unik || s.id;
+    const link = `${window.location.origin}/s/${portalKode}`;
     const text = `Assalamu'alaikum Bapak/Ibu Wali Santri dari ananda *${s.nama_lengkap}*.\n\nBerikut adalah link laporan kedisiplinan dan absensi ananda bulan ini:\n${link}\n\nMohon kerjasamanya untuk senantiasa memantau perkembangan ananda. Terima kasih.`;
     
     window.open(`https://wa.me/${formattedPhone}?text=${encodeURIComponent(text)}`, '_blank');
@@ -221,7 +239,9 @@ export default function TakziranDashboard() {
       <div className="bg-emerald-800 text-white p-4 sm:p-6 pb-0">
         <h2 className="text-2xl font-bold mb-4 flex items-center gap-2"><ShieldAlert className="w-6 h-6"/> Kedisiplinan & Takziran</h2>
         <div className="flex gap-1 overflow-x-auto scrollbar-hide">
-          <button onClick={() => setActiveTab('input')} className={`flex items-center gap-2 px-5 py-3 rounded-t-xl font-bold whitespace-nowrap ${activeTab === 'input' ? 'bg-gray-50 text-emerald-800' : 'text-emerald-100 hover:bg-emerald-700'}`}><PenTool className="w-4 h-4" /> Input Massal</button>
+          {canInput && (
+            <button onClick={() => setActiveTab('input')} className={`flex items-center gap-2 px-5 py-3 rounded-t-xl font-bold whitespace-nowrap ${activeTab === 'input' ? 'bg-gray-50 text-emerald-800' : 'text-emerald-100 hover:bg-emerald-700'}`}><PenTool className="w-4 h-4" /> Input Massal</button>
+          )}
           <button onClick={() => setActiveTab('takziran')} className={`flex items-center gap-2 px-5 py-3 rounded-t-xl font-bold whitespace-nowrap ${activeTab === 'takziran' ? 'bg-gray-50 text-emerald-800' : 'text-emerald-100 hover:bg-emerald-700'}`}>
             <AlertCircle className="w-4 h-4" /> Daftar Tunggakan
             {tunggakanList.length > 0 && <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full ml-1">{tunggakanList.length}</span>}

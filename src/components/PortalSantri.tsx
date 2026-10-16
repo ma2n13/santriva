@@ -27,6 +27,24 @@ export default function PortalSantri() {
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const initForm = (data: any) => {
+    setEditForm({
+      nama_lengkap: data.nama_lengkap || '',
+      tempat_lahir: data.tempat_lahir || '',
+      tanggal_lahir: data.tanggal_lahir || '',
+      jenis_kelamin: data.jenis_kelamin || 'Laki-laki',
+      nama_ayah: data.nama_ayah || '',
+      nama_ibu: data.nama_ibu || '',
+      nama_wali: data.nama_wali || '',
+      no_hp_wali: data.no_hp_wali || '',
+      alamat_jalan: data.alamat_jalan || '',
+      desa_kelurahan: data.desa_kelurahan || '',
+      kecamatan: data.kecamatan || '',
+      kabupaten_kota: data.kabupaten_kota || '',
+      foto_profil: data.foto_profil || ''
+    });
+  };
+
   useEffect(() => {
     if (!kode) { setLoading(false); return; }
 
@@ -71,20 +89,22 @@ export default function PortalSantri() {
           .order('tgl_melanggar', { ascending: false });
         setLogs(logData || []);
 
-        // Fetch Catatan & Prestasi (Diperbaiki: Menggunakan created_at)
+        // Fetch Catatan & Prestasi (Menggunakan santri_id)
         const { data: catData, error: catError } = await supabase
           .from('santri_catatan')
           .select('*')
-          .eq('nama', sData.nama_lengkap);
+          .eq('santri_id', sData.id)
+          .order('created_at', { ascending: false });
           
         if (catError) console.warn("Gagal ambil catatan:", catError.message);
         setCatatanList(catData || []);
 
-        // Fetch Prestasi (Tanpa order agar tidak error 400)
+        // Fetch Prestasi
         const { data: presData, error: presError } = await supabase
           .from('santri_prestasi')
           .select('*')
-          .eq('nama', sData.nama_lengkap);
+          .eq('santri_id', sData.id)
+          .order('created_at', { ascending: false });
           
         if (presError) console.warn("Gagal ambil prestasi:", presError.message);
         setPrestasiList(presData || []);
@@ -98,24 +118,6 @@ export default function PortalSantri() {
 
     fetchPortalData();
   }, [kode]);
-
-  const initForm = (data: any) => {
-    setEditForm({
-      nama_lengkap: data.nama_lengkap || '',
-      tempat_lahir: data.tempat_lahir || '',
-      tanggal_lahir: data.tanggal_lahir || '',
-      jenis_kelamin: data.jenis_kelamin || 'Laki-laki',
-      nama_ayah: data.nama_ayah || '',
-      nama_ibu: data.nama_ibu || '',
-      nama_wali: data.nama_wali || '',
-      no_hp_wali: data.no_hp_wali || '',
-      alamat_jalan: data.alamat_jalan || '',
-      desa_kelurahan: data.desa_kelurahan || '',
-      kecamatan: data.kecamatan || '',
-      kabupaten_kota: data.kabupaten_kota || '',
-      foto_profil: data.foto_profil || ''
-    });
-  };
 
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -148,10 +150,10 @@ export default function PortalSantri() {
     setIsSaving(true);
     
     try {
-      // Diperbaiki: Menggunakan key 'data_pengajuan' sesuai database Anda
+      // Payload sesuai skema tabel pengajuan_santri (wajib jenis_pengajuan, tanpa kolom nama_santri)
       const payload = {
         santri_id: santri.id,
-        nama_santri: santri.nama_lengkap,
+        jenis_pengajuan: 'Update',
         status_pengajuan: 'Menunggu',
         data_pengajuan: editForm 
       };

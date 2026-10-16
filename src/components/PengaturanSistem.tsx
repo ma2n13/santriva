@@ -24,11 +24,6 @@ export default function PengaturanSistem() {
   const [selectedPerms, setSelectedPerms] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
 
-  useEffect(() => {
-    fetchRoles();
-    fetchUsers();
-  }, []);
-
   const fetchRoles = async () => {
     const { data } = await supabase.from('master_role').select('*').order('nama_role');
     setRoles(data || []);
@@ -38,6 +33,11 @@ export default function PengaturanSistem() {
     const { data } = await supabase.from('pengguna').select('*, master_role(nama_role)').order('created_at', { ascending: false });
     setUsers(data || []);
   };
+
+  useEffect(() => {
+    fetchRoles();
+    fetchUsers();
+  }, []);
 
   // =================== MANAJEMEN ROLE ===================
   const handleTogglePerm = (permId: string) => setSelectedPerms(prev => prev.includes(permId) ? prev.filter(p => p !== permId) : [...prev, permId]);

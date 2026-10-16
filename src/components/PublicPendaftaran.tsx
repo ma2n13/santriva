@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import type { Santri } from '../types';
-import { CheckCircle, AlertCircle, Send, UserPlus, RefreshCw, Search } from 'lucide-react';
+import { CheckCircle, AlertCircle, Send, UserPlus, RefreshCw, Search, ShieldCheck, X } from 'lucide-react';
 
 const API_WILAYAH = 'https://www.emsifa.com/api-wilayah-indonesia/api';
 
@@ -31,6 +31,10 @@ export default function PublicPendaftaran() {
   const [isSearching, setIsSearching] = useState(false);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [verifyingSantri, setVerifyingSantri] = useState<any | null>(null);
+  const [verifyInput, setVerifyInput] = useState('');
+  const [verifyError, setVerifyError] = useState<string | null>(null);
+  const [isVerifying, setIsVerifying] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -57,9 +61,10 @@ export default function PublicPendaftaran() {
     if (searchQuery.length < 2) { setSearchResults([]); return; }
     setIsSearching(true);
     const timeout = setTimeout(async () => {
+      // Hanya ambil informasi non-sensitif untuk daftar pencarian publik
       const { data } = await supabase.from('santri')
-        .select('id, nama_lengkap, nis, desa_kelurahan, alamat_jalan')
-        .ilike('nama_lengkap', `%${searchQuery}%`).limit(50);
+        .select('id, nama_lengkap, desa_kelurahan')
+        .ilike('nama_lengkap', `%${searchQuery}%`).limit(20);
       setSearchResults(data || []); setIsSearching(false);
     }, 300);
     return () => clearTimeout(timeout);
@@ -72,9 +77,48 @@ export default function PublicPendaftaran() {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
-  const handleSelectSantri = async (id: string) => {
-    const { data } = await supabase.from('santri').select('*').eq('id', id).single();
-    if(data) { setFormData(data); setSelectedSantriId(id); setSearchQuery(''); setSearchResults([]); }
+  const handleSelectSantri = (santriSummary: any) => {
+    setVerifyingSantri(santriSummary);
+    setVerifyInput('');
+    setVerifyError(null);
+  };
+
+  const handleVerifySubmit = async () => {
+    if (!verifyingSantri || !verifyInput.trim()) return;
+    setIsVerifying(true);
+    setVerifyError(null);
+    try {
+      const query = verifyInput.trim();
+      const { data, error } = await supabase
+        .from('santri')
+        .select('*')
+        .eq('id', verifyingSantri.id)
+        .single();
+
+      if (error || !data) {
+        setVerifyError('Data santri tidak dapat diverifikasi saat ini.');
+        return;
+      }
+
+      const matchTglLahir = data.tanggal_lahir && data.tanggal_lahir === query;
+      const matchNis = data.nis && data.nis.toLowerCase() === query.toLowerCase();
+      const matchKode = data.kode_unik && data.kode_unik.toLowerCase() === query.toLowerCase();
+      const matchNisn = data.nisn && data.nisn.toLowerCase() === query.toLowerCase();
+
+      if (matchTglLahir || matchNis || matchKode || matchNisn) {
+        setFormData(data);
+        setSelectedSantriId(data.id);
+        setSearchQuery('');
+        setSearchResults([]);
+        setVerifyingSantri(null);
+      } else {
+        setVerifyError('Verifikasi gagal: Tanggal lahir atau NIS tidak cocok dengan santri terpilih.');
+      }
+    } catch (err: any) {
+      setVerifyError(err.message || 'Terjadi kesalahan saat memverifikasi identitas.');
+    } finally {
+      setIsVerifying(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -128,15 +172,58 @@ export default function PublicPendaftaran() {
               </div>
               {isSearching && <p className="text-sm mt-2 text-blue-600">Mencari...</p>}
               {searchResults.length > 0 && (
-                <div className="mt-2 bg-white rounded-xl shadow-lg border max-h-60 overflow-y-auto">
+                <div className="mt-2 bg-white rounded-xl shadow-lg border max-h-60 overflow-y-auto divide-y">
                   {searchResults.map(s => (
-                    <div key={s.id} onClick={() => handleSelectSantri(s.id)} className="p-3 border-b hover:bg-blue-50 cursor-pointer">
-                      <div className="font-bold text-gray-800">{s.nama_lengkap}</div>
-                      <div className="text-xs text-gray-500">NIS: {s.nis || '-'} | Alamat: {s.alamat_jalan || s.desa_kelurahan || '-'}</div>
+                    <div key={s.id} onClick={() => handleSelectSantri(s)} className="p-3.5 hover:bg-blue-50 cursor-pointer flex justify-between items-center transition-colors">
+                      <div>
+                        <div className="font-bold text-gray-800">{s.nama_lengkap}</div>
+                        <div className="text-xs text-gray-500">Desa/Kelurahan: {s.desa_kelurahan || '-'}</div>
+                      </div>
+                      <span className="text-xs font-bold text-blue-600 bg-blue-100 hover:bg-blue-200 px-3 py-1.5 rounded-lg">
+                        Pilih & Verifikasi
+                      </span>
                     </div>
                   ))}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* MODAL VERIFIKASI IDENTITAS SEBELUM EDIT DATA */}
+          {verifyingSantri && (
+            <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="bg-white max-w-md w-full rounded-2xl shadow-2xl p-6 border border-emerald-100 animate-in fade-in">
+                <div className="flex justify-between items-center mb-4 pb-2 border-b">
+                  <div className="flex items-center gap-2 text-emerald-800 font-bold">
+                    <ShieldCheck className="w-5 h-5 text-emerald-600" />
+                    <span>Verifikasi Identitas Santri</span>
+                  </div>
+                  <button type="button" onClick={() => { setVerifyingSantri(null); setVerifyError(null); }} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5"/></button>
+                </div>
+                <p className="text-sm text-gray-600 mb-4 leading-relaxed">
+                  Demi perlindungan data pribadi santri ananda <b>{verifyingSantri.nama_lengkap}</b>, silakan masukkan <b>Tanggal Lahir</b> (format YYYY-MM-DD) atau <b>NIS</b> santri untuk membuka formulir:
+                </p>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Tanggal Lahir (YYYY-MM-DD) atau NIS</label>
+                    <input 
+                      type="text" 
+                      value={verifyInput} 
+                      onChange={e => setVerifyInput(e.target.value)} 
+                      placeholder="Contoh: 2008-05-14 atau 12345" 
+                      className="w-full border border-gray-300 p-2.5 rounded-xl font-medium text-sm focus:ring-2 focus:ring-emerald-500 outline-none" 
+                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleVerifySubmit(); } }}
+                    />
+                  </div>
+                  {verifyError && <p className="text-xs text-red-600 font-semibold bg-red-50 p-2 rounded-lg border border-red-200">{verifyError}</p>}
+                  <div className="flex gap-2 justify-end pt-2">
+                    <button type="button" onClick={() => { setVerifyingSantri(null); setVerifyError(null); }} className="px-4 py-2 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200">Batal</button>
+                    <button type="button" onClick={handleVerifySubmit} disabled={isVerifying} className="px-5 py-2 text-sm font-bold text-white bg-emerald-700 hover:bg-emerald-800 rounded-lg shadow disabled:opacity-50">
+                      {isVerifying ? 'Memeriksa...' : 'Verifikasi & Buka Data'}
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 

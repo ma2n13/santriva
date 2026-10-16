@@ -208,20 +208,25 @@ const FormFields = ({
 // 2. KOMPONEN BARIS TABEL (React.memo)
 // =========================================================================
 const SantriTableRow = React.memo(({
-  s, isSelected, onSelect, onEdit, onCopyLink
+  s, isSelected, onSelect, onEdit, onCopyLink, canEdit = true
 }: {
   s: Santri & { catatan?: string },
   isSelected: boolean,
   onSelect: (id: string) => void,
   onEdit: (s: Santri & { catatan?: string }) => void,
-  onCopyLink: (kode: string) => void
+  onCopyLink: (kode: string) => void,
+  canEdit?: boolean
 }) => {
   return (
     <tr className={`transition-colors ${isSelected ? 'bg-emerald-100/50' : 'hover:bg-emerald-50'}`}>
       <td className="p-3 text-center"><input type="checkbox" className="w-4 h-4 cursor-pointer" checked={isSelected} onChange={() => onSelect(s.id)} /></td>
       <td className="p-3">
         <div className="flex items-center gap-2">
-          <button onClick={() => onEdit(s)} className="font-bold text-emerald-700 hover:underline text-left">{s.nama_lengkap}</button>
+          {canEdit ? (
+            <button onClick={() => onEdit(s)} className="font-bold text-emerald-700 hover:underline text-left">{s.nama_lengkap}</button>
+          ) : (
+            <span className="font-bold text-gray-800 text-left">{s.nama_lengkap}</span>
+          )}
           <button onClick={() => onCopyLink(s.kode_unik || '')} title="Copy Link Portal Santri" className="text-gray-400 hover:text-blue-600 transition-colors"><LinkIcon className="w-4 h-4"/></button>
         </div>
       </td>
@@ -279,7 +284,7 @@ const BULK_EDIT_FIELDS = [
   { key: 'no_hp_wali', label: 'No. HP Wali (WA)' }, { key: 'no_hp_santri', label: 'No. HP Santri' }, { key: 'catatan', label: 'Catatan Khusus' },
 ];
 
-export default function SantriPage() {
+export default function SantriPage({ canEdit = true }: { canEdit?: boolean }) {
   const [data, setData] = useState<(Santri & { catatan?: string })[]>([]);
   const [loading, setLoading] = useState(true);
   const [pendingReviewCount, setPendingReviewCount] = useState(0);
@@ -369,7 +374,7 @@ export default function SantriPage() {
   }, [data, debouncedSearchQuery, searchColumn]);
 
   const sortedData = useMemo(() => {
-    let sortableItems = [...filteredData];
+    const sortableItems = [...filteredData];
     if (sortConfig !== null) {
       sortableItems.sort((a: any, b: any) => {
         let aVal = a[sortConfig.key] || ''; let bVal = b[sortConfig.key] || '';
@@ -509,7 +514,7 @@ export default function SantriPage() {
   };
 
   const executeImport = async () => {
-    setIsImporting(true); let successCount = 0; let fails: {payload: any, error: string}[] = [];
+    setIsImporting(true); let successCount = 0; const fails: {payload: any, error: string}[] = [];
     for (const santri of importReady) {
       const payload: any = sanitizePayload({ ...santri, kode_unik: 'STR-' + Math.random().toString(36).substring(2, 8).toUpperCase() + Date.now().toString(36).slice(-3) });
       const { error } = await supabase.from('santri').insert([payload]);
@@ -532,24 +537,16 @@ export default function SantriPage() {
     fetchData(); 
   };
 
-  const executeForceImport = async () => {
-    setIsImporting(true); let successCount = 0; let newFails: {payload: any, error: string}[] = [];
-    for (const item of failedImports) {
-      const payload = sanitizePayload({ ...item.payload });
-      const randFix = Math.random().toString(36).substring(2, 6).toUpperCase();
-      if (payload.nis && payload.nis !== null) payload.nis = `${payload.nis}-DUP${randFix}`;
-      if (payload.nisn && payload.nisn !== null) payload.nisn = `${payload.nisn}-DUP${randFix}`;
-      if (payload.nik && payload.nik !== null) payload.nik = `${payload.nik}-DUP${randFix}`;
-      const { error } = await supabase.from('santri').insert([payload]);
-      if (!error) successCount++; else newFails.push({ payload, error: error.message });
-    }
-    setIsImporting(false); setFailedImports(newFails); fetchData();
-    if (newFails.length > 0) showMessage('error', `Berhasil memaksa impor ${successCount} data. NAMUN ${newFails.length} DATA MASIH GAGAL. Periksa format kolom unik.`, 8000);
-    else showMessage('success', `Berhasil memaksa impor seluruh ${successCount} data!`);
+  const handleCopyFailedReport = () => {
+    const report = failedImports.map((item, idx) => 
+      `${idx + 1}. Nama: ${item.payload?.nama_lengkap || '-'} | NIS: ${item.payload?.nis || '-'} | NIK: ${item.payload?.nik || '-'}\n   Alasan Error: ${item.error}`
+    ).join('\n\n');
+    navigator.clipboard.writeText(report);
+    showMessage('success', 'Rincian error berhasil disalin ke clipboard! Silakan periksa dan perbaiki file spreadsheet Anda.', 6000);
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target; let updates: any = { [name]: value };
+    const { name, value } = e.target; const updates: any = { [name]: value };
     if (selectedSantri) setSelectedSantri({ ...selectedSantri, ...updates, status_sinkronisasi: 'Dimodifikasi Manual' } as Santri & { catatan?: string });
     else setFormData(prev => ({ ...prev, ...updates }));
   };
@@ -613,7 +610,7 @@ export default function SantriPage() {
             </div>
           </div>
           
-          <Link to="/admin-review" className="relative flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-lg text-sm whitespace-nowrap shadow-sm transition-all">
+          <Link to="/review" className="relative flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-lg text-sm whitespace-nowrap shadow-sm transition-all">
             <Bell className="w-4 h-4" />
             {pendingReviewCount > 0 && (
               <span className="absolute -top-2 -right-2 bg-red-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full animate-bounce">
@@ -622,19 +619,23 @@ export default function SantriPage() {
             )}
           </Link>
 
-          <input type="file" accept=".csv, .xlsx, .xls" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
-          <button onClick={() => {setMessage(null); fileInputRef.current?.click();}} className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-sm whitespace-nowrap">
-            <Upload className="w-4 h-4" /> Import
-          </button>
+          {canEdit && (
+            <>
+              <input type="file" accept=".csv, .xlsx, .xls" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
+              <button onClick={() => {setMessage(null); fileInputRef.current?.click();}} className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-sm whitespace-nowrap">
+                <Upload className="w-4 h-4" /> Import
+              </button>
 
-          <button onClick={() => {setMessage(null); setIsAddModalOpen(true);}} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg text-sm whitespace-nowrap">
-            <Plus className="w-4 h-4" />
-          </button>
+              <button onClick={() => {setMessage(null); setIsAddModalOpen(true);}} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg text-sm whitespace-nowrap">
+                <Plus className="w-4 h-4" />
+              </button>
+            </>
+          )}
         </div>
       </div>
 
       {/* FLOATING ACTION BAR */}
-      {selectedIds.length > 0 && (
+      {canEdit && selectedIds.length > 0 && (
         <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-lg flex justify-between items-center mb-4 animate-in fade-in slide-in-from-top-4">
           <div className="flex items-center gap-2 text-emerald-800 font-semibold text-sm">
             <CheckSquare className="w-5 h-5"/> {selectedIds.length} Data Terpilih
@@ -670,7 +671,7 @@ export default function SantriPage() {
                 'Nama Ayah', 'Pek. Ayah', 'Nama Ibu', 'Pek. Ibu', 'Nama Wali', 'HP Wali', 'Catatan Khusus', 'Waktu Pencatatan', 'Status Sinkron'
               ].map((col, idx) => {
                 const keys: Record<string, string> = {
-                  'Nama Lengkap': 'nama_lengkap', 'NIS': 'nis', 'Kelas': 'kelas', 'Asrama': 'asrama', 'Status': 'status', 'L/P': 'jenis_kelamin', 'Tahun Masuk': 'tahun_masuk', 'Tahun Keluar': 'tahun_keluar', 'Tempat Lahir': 'tempat_lahir', 'Tgl Lahir': 'tanggal_lahir', 'HP Santri': 'no_hp_santri', 'Prov': 'provinsi', 'Kab': 'kabupaten_kota', 'Kec': 'kecamatan', 'Desa': 'desa_kelurahan', 'Alamat': 'alamat_jalan', 'Pos': 'kode_pos', 'Nama Ayah': 'nama_ayah', 'Pek. Ayah': 'pekerjaan_ayah', 'Nama Ibu': 'nama_ibu', 'Pek. Ibu': 'pekerjaan_ibu', 'Nama Wali': 'nama_wali', 'HP Wali': 'no_hp_wali', 'Catatan Khusus': 'catatan', 'Waktu Pencatatan': 'tanggal_masuk', 'Status Sinkron': 'status_sinkronisasi'
+                  'Nama Lengkap': 'nama_lengkap', 'NIS': 'nis', 'Kelas': 'kelas', 'Asrama': 'asrama', 'Status': 'status', 'L/P': 'jenis_kelamin', 'Tahun Masuk': 'tahun_masuk', 'Tahun Keluar': 'tahun_keluar', 'Tempat Lahir': 'tempat_lahir', 'Tgl Lahir': 'tanggal_lahir', 'HP Santri': 'no_hp_santri', 'Provinsi': 'provinsi', 'Kabupaten/Kota': 'kabupaten_kota', 'Kecamatan': 'kecamatan', 'Desa': 'desa_kelurahan', 'Alamat': 'alamat_jalan', 'Kode Pos': 'kode_pos', 'Nama Ayah': 'nama_ayah', 'Pek. Ayah': 'pekerjaan_ayah', 'Nama Ibu': 'nama_ibu', 'Pek. Ibu': 'pekerjaan_ibu', 'Nama Wali': 'nama_wali', 'HP Wali': 'no_hp_wali', 'Catatan Khusus': 'catatan', 'Waktu Pencatatan': 'tanggal_masuk', 'Status Sinkron': 'status_sinkronisasi'
                 };
                 const sortKey = keys[col];
                 return (
@@ -684,7 +685,7 @@ export default function SantriPage() {
           <tbody className="divide-y divide-gray-100">
             {loading ? <tr><td colSpan={27} className="p-8 text-center text-gray-500"><div className="flex justify-center items-center gap-2"><RefreshCw className="animate-spin w-5 h-5"/> Memuat data...</div></td></tr> : null}
             {!loading && paginatedData.map((s) => (
-              <SantriTableRow key={s.id} s={s} isSelected={selectedIds.includes(s.id)} onSelect={handleSelectOne} onEdit={handleEditClick} onCopyLink={handleCopyLink} />
+              <SantriTableRow key={s.id} s={s} isSelected={selectedIds.includes(s.id)} onSelect={handleSelectOne} onEdit={handleEditClick} onCopyLink={handleCopyLink} canEdit={canEdit} />
             ))}
           </tbody>
         </table>
@@ -814,11 +815,11 @@ export default function SantriPage() {
           <div className="bg-white w-full max-w-xl flex flex-col rounded-2xl shadow-2xl overflow-hidden ring-4 ring-rose-500/30">
             <div className="px-6 py-4 border-b flex justify-between items-center bg-rose-50"><h3 className="text-lg font-bold text-rose-800 flex items-center gap-2"><AlertTriangle className="w-6 h-6"/> {failedImports.length} Data Ditolak Server</h3></div>
             <div className="p-6 overflow-y-auto max-h-[60vh]">
-              <p className="text-gray-700 mb-4 leading-relaxed text-sm">Sistem mendeteksi ada <b>{failedImports.length} santri</b> yang gagal disimpan karena <b>NIS/NIK sama persis dengan yang sudah ada di database</b>.</p>
-              <div className="bg-rose-50 border border-rose-200 rounded p-3 text-xs mb-4 max-h-32 overflow-y-auto"><ul className="list-disc pl-4 text-rose-800">{failedImports.slice(0, 10).map((f, i) => (<li key={i}>{f.payload.nama_lengkap} (NIS: {f.payload.nis || f.payload.nik || '-'}) <br/><span className="text-[10px] opacity-70">Err: {f.error}</span></li>))}{failedImports.length > 10 && <li>...dan {failedImports.length - 10} lainnya</li>}</ul></div>
+              <p className="text-gray-700 mb-4 leading-relaxed text-sm">Server menolak <b>{failedImports.length} baris data</b> karena alasan teknis berikut (misalnya format tanggal tidak valid atau batasan kolom):</p>
+              <div className="bg-rose-50 border border-rose-200 rounded p-3 text-xs mb-4 max-h-40 overflow-y-auto"><ul className="list-disc pl-4 text-rose-800 space-y-1">{failedImports.slice(0, 15).map((f, i) => (<li key={i}><b>{f.payload.nama_lengkap}</b> (NIS: {f.payload.nis || '-'}, NIK: {f.payload.nik || '-'})<br/><span className="text-[11px] text-rose-600 font-mono">Pesan DB: {f.error}</span></li>))}{failedImports.length > 15 && <li className="font-bold">...dan {failedImports.length - 15} baris lainnya</li>}</ul></div>
               <div className="space-y-2">
-                <button onClick={executeForceImport} disabled={isImporting} className="w-full text-left px-4 py-3 bg-amber-50 border border-amber-300 hover:bg-amber-100 rounded-lg transition-colors group"><span className="block font-bold text-amber-800 group-hover:text-amber-900">1. Tetap Paksa Impor Semua (Rekomendasi)</span><span className="text-xs text-amber-700 block mt-1">Sistem akan menyisipkan kode tambahan pada NIS/NIK yang bentrok tersebut secara otomatis.</span></button>
-                <button onClick={() => setFailedImports([])} disabled={isImporting} className="w-full text-left px-4 py-3 bg-gray-50 border border-gray-300 hover:bg-gray-100 rounded-lg transition-colors group"><span className="block font-bold text-gray-700 group-hover:text-gray-900">2. Abaikan Saja</span><span className="text-xs text-gray-500 block mt-1">Buang data bermasalah tersebut. Hanya data bersih yang disimpan.</span></button>
+                <button onClick={handleCopyFailedReport} className="w-full text-left px-4 py-3 bg-blue-50 border border-blue-300 hover:bg-blue-100 rounded-lg transition-colors group"><span className="block font-bold text-blue-800 group-hover:text-blue-900">1. Salin Rincian Error ke Clipboard</span><span className="text-xs text-blue-600 block mt-1">Gunakan untuk memeriksa dan memperbaiki data pada file Excel/CSV sumber Anda.</span></button>
+                <button onClick={() => setFailedImports([])} className="w-full text-left px-4 py-3 bg-gray-50 border border-gray-300 hover:bg-gray-100 rounded-lg transition-colors group"><span className="block font-bold text-gray-700 group-hover:text-gray-900">2. Tutup Notifikasi</span><span className="text-xs text-gray-500 block mt-1">Data lain yang tidak bermasalah telah berhasil tersimpan di sistem.</span></button>
               </div>
             </div>
           </div>

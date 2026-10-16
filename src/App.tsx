@@ -201,6 +201,17 @@ export default function App() {
   const [userProfile, setUserProfile] = useState<any>(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
 
+  const fetchUserProfile = async (user: any) => {
+    try {
+      const { data } = await supabase.from('pengguna').select('*, master_role(nama_role, permissions)').eq('id', user.id).maybeSingle();
+      setUserProfile(data);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingAuth(false);
+    }
+  };
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
@@ -216,17 +227,6 @@ export default function App() {
     
     return () => subscription.unsubscribe();
   }, []);
-
-  const fetchUserProfile = async (user: any) => {
-    try {
-      const { data } = await supabase.from('pengguna').select('*, master_role(nama_role, permissions)').eq('id', user.id).maybeSingle();
-      setUserProfile(data);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoadingAuth(false);
-    }
-  };
 
   if (loadingAuth) return <div className="h-screen flex items-center justify-center bg-[#FDFBF7] text-emerald-800 font-bold animate-pulse">Menghubungkan ke server...</div>;
 
@@ -252,9 +252,9 @@ export default function App() {
     return (
       <AdminLayout userProfile={userProfile}>
         <Routes>
-          {hasPerm('akses_induk') && <Route path="/" element={<SantriPage />} />}
+          {hasPerm('akses_induk') && <Route path="/" element={<SantriPage canEdit={hasPerm('edit_induk')} />} />}
           {hasPerm('validasi_pengajuan') && <Route path="/review" element={<AdminReview />} />}
-          {hasPerm('akses_takziran') && <Route path="/takziran" element={<TakziranDashboard />} />}
+          {hasPerm('akses_takziran') && <Route path="/takziran" element={<TakziranDashboard canInput={hasPerm('input_takziran')} />} />}
           {hasPerm('kelola_pengguna') && <Route path="/pengaturan" element={<PengaturanSistem />} />}
           <Route path="*" element={<div className="p-10 text-center font-bold text-gray-500">Anda tidak memiliki hak akses ke halaman ini.</div>} />
         </Routes>
