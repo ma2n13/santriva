@@ -25,3 +25,8 @@ dist-ssr
 
 # Area kerja Git lokal
 .worktrees/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
