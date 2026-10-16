@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import { supabase } from '../lib/supabase';
-import { PenTool, History, Settings, Search, Calendar, FileText, CheckCircle, Save, Plus, Trash2, CheckSquare, Square, ShieldAlert, AlertCircle, UserSearch, MessageCircle } from 'lucide-react';
+import { PenTool, History, Settings, Search, Calendar, FileText, CheckCircle, Save, Plus, Trash2, CheckSquare, Square, ShieldAlert, AlertCircle, UserSearch, Sparkles } from 'lucide-react';
+import AiWaMessageModal from './AiWaMessageModal';
 
 const getTodayDate = () => new Date().toISOString().split('T')[0];
 const getCurrentMonth = () => new Date().toISOString().slice(0, 7); 
@@ -47,6 +48,7 @@ export default function TakziranDashboard({ canInput = true }: { canInput?: bool
   const [riwayatMonth, setRiwayatMonth] = useState<string>(getCurrentMonth());
   const [riwayatLogs, setRiwayatLogs] = useState<any[]>([]);
   const [isFetchingRiwayat, setIsFetchingRiwayat] = useState(false);
+  const [isAiModalOpen, setIsAiModalOpen] = useState(false);
 
   const fetchTunggakan = async () => {
     const { data } = await supabase
@@ -215,22 +217,11 @@ export default function TakziranDashboard({ canInput = true }: { canInput?: bool
     }
   };
 
-  // Fungsi Kirim WhatsApp ke Wali
+  // Fungsi Buka Modal Generator WhatsApp Asisten AI
   const handleSendWA = () => {
     const s = santriList.find(x => x.id === riwayatSantriId);
     if (!s) return;
-    const phone = s.no_hp_wali;
-    if (!phone) return alert('Nomor HP Wali kosong! Silakan lengkapi data santri ini di Buku Induk.');
-    
-    let formattedPhone = phone.replace(/\D/g, '');
-    if (formattedPhone.startsWith('0')) formattedPhone = '62' + formattedPhone.substring(1);
-    
-    // Arahkan ke rute portal santri resmi
-    const portalKode = s.kode_unik || s.id;
-    const link = `${window.location.origin}/s/${portalKode}`;
-    const text = `Assalamu'alaikum Bapak/Ibu Wali Santri dari ananda *${s.nama_lengkap}*.\n\nBerikut adalah link laporan kedisiplinan dan absensi ananda bulan ini:\n${link}\n\nMohon kerjasamanya untuk senantiasa memantau perkembangan ananda. Terima kasih.`;
-    
-    window.open(`https://wa.me/${formattedPhone}?text=${encodeURIComponent(text)}`, '_blank');
+    setIsAiModalOpen(true);
   };
 
   return (
@@ -401,10 +392,11 @@ export default function TakziranDashboard({ canInput = true }: { canInput?: bool
 
                    {/* TOMBOL BARU: GENERATE WA LINK KEPADA WALI */}
                    <button 
+                     type="button"
                      onClick={handleSendWA}
-                     className="flex items-center gap-2 bg-gradient-to-r from-[#25D366] to-[#128C7E] hover:from-[#128C7E] hover:to-[#075E54] text-white px-4 py-2.5 rounded-xl text-sm font-bold shadow-md transition-all"
+                     className="flex items-center gap-2 bg-gradient-to-r from-emerald-600 via-teal-600 to-[#25D366] hover:from-emerald-700 hover:to-[#128C7E] text-white px-4 py-2.5 rounded-xl text-sm font-bold shadow-md shadow-emerald-900/15 transition-all"
                    >
-                     <MessageCircle className="w-4 h-4"/> Bagikan ke WA Wali
+                     <Sparkles className="w-4 h-4 text-amber-300"/> Asisten AI — Pesan WA Wali
                    </button>
                 </div>
 
@@ -492,6 +484,15 @@ export default function TakziranDashboard({ canInput = true }: { canInput?: bool
         )}
       
       </div>
+
+      {/* MODAL GENERATOR PESAN AI WA */}
+      <AiWaMessageModal
+        isOpen={isAiModalOpen}
+        onClose={() => setIsAiModalOpen(false)}
+        santri={santriList.find(s => s.id === riwayatSantriId) || null}
+        logs={riwayatLogs}
+        periode={new Date(`${riwayatMonth}-01`).toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}
+      />
     </div>
   );
 }
