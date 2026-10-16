@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { supabase } from '../lib/supabase';
 import type { Santri } from '../types';
 import Papa from 'papaparse';
+import * as XLSX from 'xlsx';
 import { 
   Search, Users, Plus, X, Save, Upload, FileText,
   ChevronUp, ChevronDown, CheckCircle, AlertCircle, RefreshCw, AlertTriangle,
@@ -435,23 +436,90 @@ export default function SantriPage({ canEdit = true }: { canEdit?: boolean }) {
     else { showMessage('error', 'Gagal update massal: ' + error.message); }
   };
 
+  const handleParsedData = (headers: string[], rawRows: any[]) => {
+    if (!headers || headers.length === 0) {
+      showMessage('error', 'Gagal membaca header kolom dari berkas.');
+      return;
+    }
+    setCsvHeaders(headers);
+    setCsvDataRaw(rawRows);
+    const initialMap: Record<string, string> = {};
+    DB_MAP_FIELDS.forEach(dbField => {
+      const matched = headers.find(h => {
+        const hLow = h.toLowerCase().trim();
+        const labelLow = dbField.label.toLowerCase().trim();
+        const keyLow = dbField.key.toLowerCase().trim();
+        
+        if (hLow === labelLow || hLow === keyLow) return true;
+        if (hLow.includes(dbField.key.replace('_', ' '))) return true;
+        if (labelLow.includes(hLow)) return true;
+        
+        if (dbField.key === 'nama_lengkap') {
+          return hLow.includes('nama') && !hLow.includes('ayah') && !hLow.includes('ibu') && !hLow.includes('wali');
+        }
+        if (dbField.key === 'tanggal_masuk') return hLow.includes('masuk');
+        if (dbField.key === 'catatan') return hLow.includes('catatan');
+        if (dbField.key === 'alamat_jalan') return hLow.includes('alamat');
+        return false;
+      });
+      if (matched) initialMap[dbField.key] = matched;
+    });
+    setColumnMapping(initialMap);
+    setIsMappingModalOpen(true);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    Papa.parse(file, {
-      header: true, skipEmptyLines: true,
-      complete: (results) => {
-        if (!results.meta.fields) { showMessage('error', 'Gagal membaca header.'); return; }
-        setCsvHeaders(results.meta.fields); setCsvDataRaw(results.data);
-        const initialMap: Record<string, string> = {};
-        DB_MAP_FIELDS.forEach(dbField => {
-          const matched = results.meta.fields!.find(h => h.toLowerCase().includes(dbField.key.replace('_', ' ')) || dbField.label.toLowerCase().includes(h.toLowerCase()) || (dbField.key === 'nama_lengkap' && h.toLowerCase().includes('nama')) || (dbField.key === 'tanggal_masuk' && h.toLowerCase().includes('masuk')) || (dbField.key === 'catatan' && h.toLowerCase().includes('catatan')) || (dbField.key === 'alamat_jalan' && h.toLowerCase().includes('alamat')));
-          if (matched) initialMap[dbField.key] = matched;
-        });
-        setColumnMapping(initialMap); setIsMappingModalOpen(true);
-        if (fileInputRef.current) fileInputRef.current.value = ''; 
-      }
-    });
+
+    const fileName = file.name.toLowerCase();
+    const isExcel = fileName.endsWith('.xlsx') || fileName.endsWith('.xls');
+
+    if (isExcel) {
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        try {
+          const buffer = evt.target?.result as ArrayBuffer;
+          const workbook = XLSX.read(buffer, { type: 'array' });
+          const firstSheetName = workbook.SheetNames[0];
+          if (!firstSheetName) {
+            showMessage('error', 'File Excel kosong atau tidak memiliki lembar kerja (sheet).');
+            return;
+          }
+          const worksheet = workbook.Sheets[firstSheetName];
+          const rawRows: any[] = XLSX.utils.sheet_to_json(worksheet, { defval: '', raw: false });
+          if (!rawRows || rawRows.length === 0) {
+            showMessage('error', 'Tidak ada baris data yang ditemukan dalam file Excel.');
+            return;
+          }
+          const headers = Object.keys(rawRows[0] || {});
+          handleParsedData(headers, rawRows);
+        } catch (err: any) {
+          console.error("Gagal membaca Excel:", err);
+          showMessage('error', 'Gagal memproses file Excel: ' + (err.message || 'Format tidak didukung'));
+          if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    } else {
+      // Parser CSV via PapaParse
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: (results) => {
+          if (!results.meta.fields) {
+            showMessage('error', 'Gagal membaca header file CSV.');
+            return;
+          }
+          handleParsedData(results.meta.fields, results.data);
+        },
+        error: (err) => {
+          showMessage('error', 'Gagal membaca CSV: ' + err.message);
+          if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+      });
+    }
   };
 
   const processMappingAndShowConflicts = () => {
@@ -465,7 +533,9 @@ export default function SantriPage({ canEdit = true }: { canEdit?: boolean }) {
       Object.keys(columnMapping).forEach(dbKey => {
         const csvHeader = columnMapping[dbKey];
         if (csvHeader && row[csvHeader] !== undefined && row[csvHeader] !== null) {
-          let val = String(row[csvHeader]).trim();
+          let val = row[csvHeader] instanceof Date 
+            ? row[csvHeader].toISOString().split('T')[0] 
+            : String(row[csvHeader]).trim();
           if (val) {
              if (dbKey === 'jenis_kelamin') val = val.toUpperCase().startsWith('P') ? 'Perempuan' : 'Laki-laki';
              (mappedSantri as any)[dbKey] = val; hasData = true;
