@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { ShieldAlert, Users, Plus, Edit3, Trash2, Save, X, CheckSquare, Square, XCircle } from 'lucide-react';
+import { IconButton } from './common/IconButton';
 
 const PERMISSIONS_LIST = [
   { id: 'akses_induk', label: 'Melihat Buku Induk Santri' },
@@ -87,22 +88,62 @@ export default function PengaturanSistem() {
   return (
     <div className="max-w-6xl mx-auto space-y-6">
       <div className="bg-white rounded-[2rem] p-1.5 flex shadow-sm border border-emerald-50 w-full sm:w-max">
-        <button onClick={() => setActiveTab('role')} className={`flex-1 sm:px-8 py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all ${activeTab === 'role' ? 'bg-emerald-800 text-white shadow-md' : 'text-gray-500 hover:bg-emerald-50'}`}><ShieldAlert className="w-4 h-4" /> Master Role</button>
-        <button onClick={() => setActiveTab('pengguna')} className={`flex-1 sm:px-8 py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all ${activeTab === 'pengguna' ? 'bg-emerald-800 text-white shadow-md' : 'text-gray-500 hover:bg-emerald-50'}`}><Users className="w-4 h-4" /> Validasi Akun Pengguna</button>
+        <button 
+          onClick={() => setActiveTab('role')} 
+          title="Master Role"
+          className={`group flex-1 sm:px-8 py-3 rounded-xl text-sm font-bold flex items-center justify-center transition-all ${
+            activeTab === 'role' ? 'bg-emerald-800 text-white shadow-md' : 'text-gray-500 hover:bg-emerald-50'
+          }`}
+        >
+          <ShieldAlert className="w-4 h-4 shrink-0" />
+          <span className={`overflow-hidden whitespace-nowrap transition-all duration-300 ${
+            activeTab === 'role' ? 'max-w-xs opacity-100 ml-2' : 'max-w-0 opacity-0 group-hover:max-w-xs group-hover:opacity-100 group-hover:ml-2'
+          }`}>
+            Master Role
+          </span>
+        </button>
+        <button 
+          onClick={() => setActiveTab('pengguna')} 
+          title="Validasi Akun Pengguna"
+          className={`group flex-1 sm:px-8 py-3 rounded-xl text-sm font-bold flex items-center justify-center transition-all ${
+            activeTab === 'pengguna' ? 'bg-emerald-800 text-white shadow-md' : 'text-gray-500 hover:bg-emerald-50'
+          }`}
+        >
+          <Users className="w-4 h-4 shrink-0" />
+          <span className={`overflow-hidden whitespace-nowrap transition-all duration-300 ${
+            activeTab === 'pengguna' ? 'max-w-xs opacity-100 ml-2' : 'max-w-0 opacity-0 group-hover:max-w-xs group-hover:opacity-100 group-hover:ml-2'
+          }`}>
+            Validasi Akun Pengguna
+          </span>
+        </button>
       </div>
 
       {activeTab === 'role' && (
         <div className="bg-white rounded-[2rem] shadow-sm border border-emerald-100 p-6 sm:p-8">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-bold text-emerald-950">Master Hak Akses (Role)</h2>
-            {!isFormOpen && <button onClick={() => openForm()} className="bg-amber-500 hover:bg-amber-600 text-emerald-950 font-bold px-4 py-2.5 rounded-xl text-sm flex items-center gap-2 shadow-sm"><Plus className="w-4 h-4"/> Buat Role Baru</button>}
+            {!isFormOpen && (
+              <IconButton 
+                onClick={() => openForm()} 
+                icon={<Plus className="w-4 h-4"/>}
+                label="Buat Role Baru"
+                variant="amber"
+                size="sm"
+              />
+            )}
           </div>
 
           {isFormOpen ? (
             <form onSubmit={handleSaveRole} className="bg-[#FDFBF7] p-6 rounded-2xl border border-amber-200 mb-8 animate-in fade-in">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="font-bold text-emerald-900">{editId ? 'Edit Role' : 'Tambah Role Baru'}</h3>
-                <button type="button" onClick={() => setIsFormOpen(false)} className="text-gray-400 hover:text-red-500"><X className="w-5 h-5"/></button>
+                <IconButton 
+                  type="button" 
+                  onClick={() => setIsFormOpen(false)} 
+                  icon={<X className="w-5 h-5"/>}
+                  label="Tutup Form"
+                  variant="ghost"
+                />
               </div>
               <div className="mb-6">
                 <label className="block text-xs font-bold text-emerald-800 uppercase mb-2">Nama Role</label>
@@ -120,7 +161,16 @@ export default function PengaturanSistem() {
                   );
                 })}
               </div>
-              <button disabled={isSaving} type="submit" className="w-full bg-emerald-800 hover:bg-emerald-900 text-white font-bold py-3 rounded-xl flex justify-center items-center gap-2"><Save className="w-4 h-4"/> {isSaving ? 'Menyimpan...' : 'Simpan Role'}</button>
+              <div className="flex justify-center">
+                <IconButton 
+                  disabled={isSaving} 
+                  type="submit" 
+                  icon={<Save className="w-4 h-4"/>}
+                  label={isSaving ? 'Menyimpan...' : 'Simpan Role'}
+                  variant="dark"
+                  size="md"
+                />
+              </div>
             </form>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -135,8 +185,22 @@ export default function PengaturanSistem() {
                     </div>
                   </div>
                   <div className="flex justify-end gap-2 mt-5 pt-4 border-t border-gray-200">
-                    <button onClick={() => openForm(r)} className="p-2 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg"><Edit3 className="w-4 h-4"/></button>
-                    {r.nama_role !== 'Super Admin' && <button onClick={() => handleDeleteRole(r.id, r.nama_role)} className="p-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg"><Trash2 className="w-4 h-4"/></button>}
+                    <IconButton 
+                      onClick={() => openForm(r)} 
+                      icon={<Edit3 className="w-4 h-4"/>}
+                      label="Edit Role"
+                      variant="sky"
+                      size="sm"
+                    />
+                    {r.nama_role !== 'Super Admin' && (
+                      <IconButton 
+                        onClick={() => handleDeleteRole(r.id, r.nama_role)} 
+                        icon={<Trash2 className="w-4 h-4"/>}
+                        label="Hapus Role"
+                        variant="rose"
+                        size="sm"
+                      />
+                    )}
                   </div>
                 </div>
               ))}
@@ -185,9 +249,13 @@ export default function PengaturanSistem() {
                           <option value="">-- Tetapkan Role --</option>
                           {roles.map(r => <option key={r.id} value={r.id}>{r.nama_role}</option>)}
                         </select>
-                        <button onClick={() => handleRejectUser(u.id)} title="Tolak / Hapus Akses" className="p-2 bg-red-50 text-red-600 hover:bg-red-600 hover:text-white rounded-xl transition-colors border border-red-200">
-                          <XCircle className="w-5 h-5"/>
-                        </button>
+                        <IconButton
+                          onClick={() => handleRejectUser(u.id)}
+                          icon={<XCircle className="w-5 h-5"/>}
+                          label="Tolak / Cabut Akses"
+                          variant="rose"
+                          size="sm"
+                        />
                       </div>
                     </td>
                   </tr>

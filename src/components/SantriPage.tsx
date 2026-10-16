@@ -6,9 +6,12 @@ import * as XLSX from 'xlsx';
 import { 
   Search, Users, Plus, X, Save, Upload, FileText,
   ChevronUp, ChevronDown, CheckCircle, AlertCircle, RefreshCw, AlertTriangle,
-  Trash2, Edit, CheckSquare, Clock, Link as LinkIcon, Bell
+  Trash2, Edit, CheckSquare, Clock, Link as LinkIcon, Bell, CopyCheck,
+  ChevronLeft, ChevronRight
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { formatSantriName } from '../utils/nameFormat';
+import DuplicateReviewModal from './DuplicateReviewModal';
+import { IconButton, IconButtonLink } from './common/IconButton';
 
 // =========================================================================
 // CUSTOM HOOK: Debounce (Menghilangkan Lag Saat Mengetik Pencarian)
@@ -139,10 +142,15 @@ const FormFields = ({
       <div className="md:col-span-3 pb-1 border-b text-emerald-700 font-bold mt-2">Administrasi Akademik</div>
       <div>
         <label className="flex justify-between items-center text-xs text-emerald-600 font-bold mb-1">
-          Waktu Pencatatan
-          <button type="button" onClick={handleSetToday} className="flex items-center gap-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 px-1.5 py-0.5 rounded text-[10px] transition-colors">
-            <Clock className="w-3 h-3"/> Saat Ini
-          </button>
+          <span>Waktu Pencatatan</span>
+          <IconButton 
+            type="button" 
+            onClick={handleSetToday} 
+            icon={<Clock className="w-3 h-3"/>}
+            label="Saat Ini"
+            variant="emerald"
+            size="sm"
+          />
         </label>
         <input type="datetime-local" name="tanggal_masuk" value={getSafeDatetimeLocal(dataTarget.tanggal_masuk)} onChange={onChange} className="w-full border border-emerald-300 bg-emerald-50 p-2 rounded focus:ring-1" />
       </div>
@@ -224,11 +232,17 @@ const SantriTableRow = React.memo(({
       <td className="p-3">
         <div className="flex items-center gap-2">
           {canEdit ? (
-            <button onClick={() => onEdit(s)} className="font-bold text-emerald-700 hover:underline text-left">{s.nama_lengkap}</button>
+            <button onClick={() => onEdit(s)} className="font-bold text-emerald-700 hover:underline text-left">{formatSantriName(s.nama_lengkap)}</button>
           ) : (
-            <span className="font-bold text-gray-800 text-left">{s.nama_lengkap}</span>
+            <span className="font-bold text-gray-800 text-left">{formatSantriName(s.nama_lengkap)}</span>
           )}
-          <button onClick={() => onCopyLink(s.kode_unik || '')} title="Copy Link Portal Santri" className="text-gray-400 hover:text-blue-600 transition-colors"><LinkIcon className="w-4 h-4"/></button>
+          <IconButton 
+            onClick={() => onCopyLink(s.kode_unik || '')} 
+            icon={<LinkIcon className="w-4 h-4"/>}
+            label="Salin Link Portal"
+            variant="ghost"
+            size="sm"
+          />
         </div>
       </td>
       <td className="p-3">{s.nis || '-'}</td>
@@ -326,6 +340,7 @@ export default function SantriPage({ canEdit = true }: { canEdit?: boolean }) {
   const [importConflicts, setImportConflicts] = useState<ImportConflict[]>([]);
   const [isImporting, setIsImporting] = useState(false);
   const [failedImports, setFailedImports] = useState<{payload: any, error: string}[]>([]);
+  const [isDuplicateModalOpen, setIsDuplicateModalOpen] = useState(false);
 
   const fetchData = async () => {
     setLoading(true);
@@ -561,6 +576,9 @@ export default function SantriPage({ canEdit = true }: { canEdit?: boolean }) {
         result[key] = result[key].trim();
         if (result[key] === '' || result[key] === '-' || result[key].toLowerCase() === 'n/a') result[key] = null;
       }
+      if (key === 'nama_lengkap' && result[key]) {
+        result[key] = formatSantriName(result[key]);
+      }
       if (['nis', 'nisn', 'nik'].includes(key) && result[key]) {
         const val = result[key].toUpperCase();
         if (val === '-' || val === '0' || val === '_' || val === 'NULL' || val === 'N/A' || val === 'TIDAK ADA') result[key] = null;
@@ -642,22 +660,30 @@ export default function SantriPage({ canEdit = true }: { canEdit?: boolean }) {
   };
 
   return (
-    <div className="max-w-[100rem] mx-auto p-4 bg-white shadow-xl rounded-2xl border border-gray-100 min-h-screen">
+    <div className="w-full bg-white shadow-xl shadow-emerald-950/5 rounded-3xl border border-emerald-900/10 p-5 sm:p-6 min-h-[calc(100vh-6rem)]">
       
       {/* HEADER & TOMBOL AKSI */}
-      <div className="flex flex-col md:flex-row justify-between items-center mb-4 gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2"><Users className="text-emerald-600" /> Database Induk Santri</h2>
-          <p className="text-sm text-gray-500 mt-1 flex items-center gap-2">Total: {filteredData.length} Data</p>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 border-b border-gray-100 pb-5">
+        <div className="flex items-center gap-3">
+          <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-emerald-800 to-emerald-600 text-white flex items-center justify-center shadow-md shadow-emerald-900/20">
+            <Users className="w-6 h-6" />
+          </div>
+          <div>
+            <h2 className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight font-display">Buku Induk Santri</h2>
+            <p className="text-xs text-gray-500 font-medium mt-0.5">
+              Total terdata: <span className="font-extrabold text-emerald-800">{filteredData.length} Santri</span>
+            </p>
+          </div>
         </div>
-        <div className="flex flex-wrap items-center justify-end gap-2 w-full md:w-auto">
+
+        <div className="flex flex-wrap items-center justify-end gap-2.5 w-full md:w-auto">
           
-          {/* SEARCH BAR TERBARU DENGAN FILTER KOLOM */}
-          <div className="flex w-full md:w-[400px]">
+          {/* SEARCH BAR MODERN DENGAN FILTER KOLOM */}
+          <div className="flex w-full md:w-[380px] shadow-xs">
             <select
               value={searchColumn}
               onChange={(e) => {setSearchColumn(e.target.value); setCurrentPage(1);}}
-              className="border border-gray-300 rounded-l-lg bg-gray-50 text-sm px-2 py-2 focus:ring-2 focus:ring-emerald-500 outline-none cursor-pointer"
+              className="border border-gray-200 rounded-l-xl bg-gray-50 text-xs sm:text-sm font-semibold px-3 py-2.5 focus:ring-2 focus:ring-emerald-500 outline-none cursor-pointer border-r-0 text-gray-700"
             >
               <option value="all">Semua Kolom</option>
               <option value="nama_lengkap">Nama</option>
@@ -669,40 +695,53 @@ export default function SantriPage({ canEdit = true }: { canEdit?: boolean }) {
               <option value="status">Status</option>
             </select>
             <div className="relative flex-1">
-              <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
+              <Search className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
               <input 
                 type="text" 
-                placeholder="Cari data..." 
+                placeholder="Cari santri..." 
                 value={searchQuery} 
                 onChange={(e) => {setSearchQuery(e.target.value); setCurrentPage(1);}} 
-                className="pl-9 pr-4 py-2 w-full border border-l-0 border-gray-300 rounded-r-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none" 
+                className="pl-9 pr-4 py-2.5 w-full border border-gray-200 rounded-r-xl text-xs sm:text-sm font-medium focus:ring-2 focus:ring-emerald-500 outline-none bg-gray-50/50 focus:bg-white transition-colors" 
               />
             </div>
           </div>
           
-          <Link to="/review" className="relative flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-lg text-sm whitespace-nowrap shadow-sm transition-all">
-            <Bell className="w-4 h-4" />
-            {pendingReviewCount > 0 && (
-              <span className="absolute -top-2 -right-2 bg-red-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full animate-bounce">
-                {pendingReviewCount}
-              </span>
-            )}
-          </Link>
+          <IconButtonLink 
+            to="/review" 
+            label="Review Pengajuan Wali"
+            icon={<Bell className="w-5 h-5" />}
+            variant="amber"
+            badge={pendingReviewCount > 0 ? pendingReviewCount : null}
+          />
 
           {canEdit && (
             <>
-              <input type="file" accept=".csv, .xlsx, .xls" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
-              <button onClick={() => {setMessage(null); fileInputRef.current?.click();}} className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-sm whitespace-nowrap">
-                <Upload className="w-4 h-4" /> Import
-              </button>
+              <IconButton 
+                onClick={() => setIsDuplicateModalOpen(true)} 
+                label="Review Duplikat"
+                icon={<CopyCheck className="w-4 h-4" />}
+                variant="amber"
+              />
 
-              <button onClick={() => {setMessage(null); setIsAddModalOpen(true);}} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg text-sm whitespace-nowrap">
-                <Plus className="w-4 h-4" />
-              </button>
+              <input type="file" accept=".csv, .xlsx, .xls" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
+              <IconButton 
+                onClick={() => {setMessage(null); fileInputRef.current?.click();}} 
+                label="Import Excel"
+                icon={<Upload className="w-4 h-4" />}
+                variant="sky"
+              />
+
+              <IconButton 
+                onClick={() => {setMessage(null); setIsAddModalOpen(true);}} 
+                label="Tambah Santri"
+                icon={<Plus className="w-4 h-4" />}
+                variant="emerald"
+              />
             </>
           )}
         </div>
       </div>
+
 
       {/* FLOATING ACTION BAR */}
       {canEdit && selectedIds.length > 0 && (
@@ -711,12 +750,20 @@ export default function SantriPage({ canEdit = true }: { canEdit?: boolean }) {
             <CheckSquare className="w-5 h-5"/> {selectedIds.length} Data Terpilih
           </div>
           <div className="flex gap-2">
-            <button onClick={() => {setBulkEditValue(''); setIsBulkEditModalOpen(true);}} className="flex items-center gap-2 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded text-xs font-bold">
-              <Edit className="w-3 h-3"/> Ubah Massal
-            </button>
-            <button onClick={handleBulkDelete} className="flex items-center gap-2 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded text-xs font-bold">
-              <Trash2 className="w-3 h-3"/> Hapus Massal
-            </button>
+            <IconButton 
+              onClick={() => {setBulkEditValue(''); setIsBulkEditModalOpen(true);}} 
+              label="Ubah Massal"
+              icon={<Edit className="w-3.5 h-3.5"/>}
+              variant="amber"
+              size="sm"
+            />
+            <IconButton 
+              onClick={handleBulkDelete} 
+              label="Hapus Massal"
+              icon={<Trash2 className="w-3.5 h-3.5"/>}
+              variant="rose"
+              size="sm"
+            />
           </div>
         </div>
       )}
@@ -727,8 +774,16 @@ export default function SantriPage({ canEdit = true }: { canEdit?: boolean }) {
         </div>
       )}
 
+      {/* PETUNJUK GESER TABEL PADA LAYAR HP */}
+      <div className="md:hidden flex items-center justify-between text-[11px] font-semibold text-emerald-800 bg-emerald-50/90 px-3 py-2 rounded-xl border border-emerald-200/70 mb-3 shadow-xs">
+        <span className="flex items-center gap-1.5">
+          <span>👉</span> Geser tabel ke samping untuk melihat seluruh data
+        </span>
+        <span className="bg-emerald-200/70 px-2 py-0.5 rounded-md font-bold text-[10px] shrink-0">27 Kolom</span>
+      </div>
+
       {/* TABEL UTAMA (27 KOLOM KEMBALI) */}
-      <div className="overflow-x-auto border border-gray-200 rounded-lg max-h-[70vh]">
+      <div className="overflow-x-auto border border-gray-200 rounded-2xl max-h-[70vh] shadow-xs">
         <table className="w-full text-xs text-left whitespace-nowrap">
           <thead className="bg-gray-100 text-gray-700 font-bold sticky top-0 z-10">
             <tr>
@@ -761,11 +816,25 @@ export default function SantriPage({ canEdit = true }: { canEdit?: boolean }) {
         </table>
       </div>
 
-      <div className="flex justify-between items-center mt-4 text-sm text-gray-600">
-        <div>Halaman {currentPage} dari {totalPages || 1}</div>
-        <div className="flex gap-2">
-          <button disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)} className="px-3 py-1 bg-gray-100 rounded hover:bg-gray-200 disabled:opacity-50">Sebelumnya</button>
-          <button disabled={currentPage === totalPages || totalPages === 0} onClick={() => setCurrentPage(p => p + 1)} className="px-3 py-1 bg-gray-100 rounded hover:bg-gray-200 disabled:opacity-50">Selanjutnya</button>
+      <div className="flex flex-col sm:flex-row justify-between items-center mt-4 gap-3 text-xs sm:text-sm text-gray-600">
+        <div>Halaman <span className="font-bold text-emerald-950">{currentPage}</span> dari <span className="font-bold text-emerald-950">{totalPages || 1}</span></div>
+        <div className="flex gap-2 w-full sm:w-auto justify-end">
+          <IconButton 
+            disabled={currentPage === 1} 
+            onClick={() => setCurrentPage(p => p - 1)} 
+            label="Sebelumnya"
+            icon={<ChevronLeft className="w-4 h-4" />}
+            variant="gray"
+            size="sm"
+          />
+          <IconButton 
+            disabled={currentPage === totalPages || totalPages === 0} 
+            onClick={() => setCurrentPage(p => p + 1)} 
+            label="Selanjutnya"
+            icon={<ChevronRight className="w-4 h-4" />}
+            variant="gray"
+            size="sm"
+          />
         </div>
       </div>
 
@@ -775,7 +844,14 @@ export default function SantriPage({ canEdit = true }: { canEdit?: boolean }) {
           <div className="bg-white w-full max-w-md flex flex-col rounded-2xl shadow-2xl overflow-hidden">
             <div className="px-6 py-4 border-b flex justify-between items-center bg-amber-50">
               <h3 className="text-lg font-bold text-amber-800 flex items-center gap-2"><Edit className="w-5 h-5"/> Ubah {selectedIds.length} Data Massal</h3>
-              <button onClick={() => setIsBulkEditModalOpen(false)} className="text-gray-400 hover:text-red-500"><X className="w-6 h-6"/></button>
+              <IconButton 
+                type="button" 
+                onClick={() => setIsBulkEditModalOpen(false)} 
+                icon={<X className="w-5 h-5"/>}
+                label="Tutup"
+                variant="ghost"
+                size="sm"
+              />
             </div>
             <form onSubmit={handleBulkEditSubmit} className="p-6">
               <div className="mb-4">
@@ -790,7 +866,14 @@ export default function SantriPage({ canEdit = true }: { canEdit?: boolean }) {
                 <label className="flex justify-between items-center text-sm font-bold text-gray-700 mb-2">
                   <span>Ketik / Pilih Nilai Baru:</span>
                   {bulkEditField === 'tanggal_masuk' && (
-                    <button type="button" onClick={() => setBulkEditValue(getCurrentDateTimeLocal())} className="flex items-center gap-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 px-2 py-1 rounded text-xs transition-colors"><Clock className="w-3 h-3"/> Saat Ini</button>
+                    <IconButton 
+                      type="button" 
+                      onClick={() => setBulkEditValue(getCurrentDateTimeLocal())} 
+                      icon={<Clock className="w-3 h-3"/>}
+                      label="Saat Ini"
+                      variant="emerald"
+                      size="sm"
+                    />
                   )}
                 </label>
                 {bulkEditField === 'status' ? (
@@ -813,8 +896,19 @@ export default function SantriPage({ canEdit = true }: { canEdit?: boolean }) {
                 )}
               </div>
               <div className="flex justify-end gap-2 mt-6">
-                <button type="button" onClick={() => setIsBulkEditModalOpen(false)} className="px-4 py-2 bg-gray-200 rounded-lg text-sm font-bold text-gray-700">Batal</button>
-                <button type="submit" className="px-4 py-2 bg-amber-500 hover:bg-amber-600 rounded-lg text-sm font-bold text-white">Simpan Perubahan</button>
+                <IconButton 
+                  type="button" 
+                  onClick={() => setIsBulkEditModalOpen(false)} 
+                  label="Batal"
+                  icon={<X className="w-4 h-4" />}
+                  variant="gray"
+                />
+                <IconButton 
+                  type="submit" 
+                  label="Simpan Perubahan"
+                  icon={<Save className="w-4 h-4" />}
+                  variant="amber"
+                />
               </div>
             </form>
           </div>
@@ -840,7 +934,22 @@ export default function SantriPage({ canEdit = true }: { canEdit?: boolean }) {
                 ))}
               </div>
             </div>
-            <div className="px-6 py-4 border-t bg-white flex justify-end gap-3"><button onClick={() => setIsMappingModalOpen(false)} className="px-4 py-2 bg-gray-200 rounded text-sm font-bold">Batal</button><button onClick={processMappingAndShowConflicts} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 rounded text-sm font-bold text-white">Lanjut</button></div>
+            <div className="px-6 py-4 border-t bg-white flex justify-end gap-3">
+              <IconButton 
+                type="button" 
+                onClick={() => setIsMappingModalOpen(false)} 
+                label="Batal"
+                icon={<X className="w-4 h-4" />}
+                variant="gray"
+              />
+              <IconButton 
+                type="button" 
+                onClick={processMappingAndShowConflicts} 
+                label="Lanjut"
+                icon={<ChevronRight className="w-4 h-4" />}
+                variant="sky"
+              />
+            </div>
           </div>
         </div>
       )}
@@ -875,7 +984,22 @@ export default function SantriPage({ canEdit = true }: { canEdit?: boolean }) {
                 </div>
               )}
             </div>
-            <div className="px-6 py-4 border-t bg-white flex justify-end gap-3"><button disabled={isImporting} onClick={() => setIsImportWizardOpen(false)} className="px-4 py-2 text-gray-600 bg-gray-200 rounded-lg text-sm font-semibold">Batal</button><button disabled={isImporting} onClick={executeImport} className="px-6 py-2 flex items-center gap-2 bg-blue-600 text-white rounded-lg text-sm font-semibold">{isImporting ? <RefreshCw className="w-4 h-4 animate-spin"/> : <Upload className="w-4 h-4"/>} {isImporting ? 'Memproses Data...' : 'Mulai Eksekusi Import'}</button></div>
+            <div className="px-6 py-4 border-t bg-white flex justify-end gap-3">
+              <IconButton 
+                disabled={isImporting} 
+                onClick={() => setIsImportWizardOpen(false)} 
+                label="Batal"
+                icon={<X className="w-4 h-4" />}
+                variant="gray"
+              />
+              <IconButton 
+                disabled={isImporting} 
+                onClick={executeImport} 
+                label={isImporting ? 'Memproses Data...' : 'Mulai Eksekusi Import'}
+                icon={isImporting ? <RefreshCw className="w-4 h-4 animate-spin"/> : <Upload className="w-4 h-4"/>}
+                variant="sky"
+              />
+            </div>
           </div>
         </div>
       )}
@@ -900,9 +1024,34 @@ export default function SantriPage({ canEdit = true }: { canEdit?: boolean }) {
       {isAddModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-4xl max-h-[90vh] flex flex-col rounded-2xl shadow-2xl overflow-hidden">
-            <div className="px-6 py-4 border-b flex justify-between items-center bg-gray-50"><h3 className="text-lg font-bold text-emerald-800 flex items-center gap-2"><Plus className="w-5 h-5"/> Tambah Data Santri Baru</h3><button onClick={() => setIsAddModalOpen(false)} className="text-gray-400 hover:text-red-500"><X className="w-6 h-6"/></button></div>
+            <div className="px-6 py-4 border-b flex justify-between items-center bg-gray-50">
+              <h3 className="text-lg font-bold text-emerald-800 flex items-center gap-2"><Plus className="w-5 h-5"/> Tambah Data Santri Baru</h3>
+              <IconButton 
+                type="button" 
+                onClick={() => setIsAddModalOpen(false)} 
+                icon={<X className="w-5 h-5"/>}
+                label="Tutup"
+                variant="ghost"
+                size="sm"
+              />
+            </div>
             <div className="p-6 overflow-y-auto"><form id="addForm" onSubmit={handleSubmitAdd}><FormFields dataTarget={formData} onChange={handleInputChange} onRegionChange={handleRegionChange} /></form></div>
-            <div className="px-6 py-4 border-t bg-gray-50 flex justify-end gap-2"><button type="button" onClick={() => setIsAddModalOpen(false)} className="px-4 py-2 text-gray-600 bg-gray-200 rounded-lg text-sm font-semibold">Tutup</button><button type="submit" form="addForm" className="px-4 py-2 flex items-center gap-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold"><Save className="w-4 h-4"/> Simpan</button></div>
+            <div className="px-6 py-4 border-t bg-gray-50 flex justify-end gap-2">
+              <IconButton 
+                type="button" 
+                onClick={() => setIsAddModalOpen(false)} 
+                label="Tutup"
+                icon={<X className="w-4 h-4" />}
+                variant="gray"
+              />
+              <IconButton 
+                type="submit" 
+                form="addForm" 
+                label="Simpan"
+                icon={<Save className="w-4 h-4"/>}
+                variant="emerald"
+              />
+            </div>
           </div>
         </div>
       )}
@@ -910,12 +1059,44 @@ export default function SantriPage({ canEdit = true }: { canEdit?: boolean }) {
       {selectedSantri && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-4xl max-h-[90vh] flex flex-col rounded-2xl shadow-2xl overflow-hidden ring-4 ring-emerald-500/20">
-            <div className="px-6 py-4 border-b flex justify-between items-center bg-emerald-50"><h3 className="text-lg font-bold text-emerald-800 flex items-center gap-2"><Edit className="w-5 h-5"/> Detail & Edit Data: {selectedSantri.nama_lengkap}</h3><button onClick={() => setSelectedSantri(null)} className="text-gray-400 hover:text-red-500"><X className="w-6 h-6"/></button></div>
+            <div className="px-6 py-4 border-b flex justify-between items-center bg-emerald-50">
+              <h3 className="text-lg font-bold text-emerald-800 flex items-center gap-2"><Edit className="w-5 h-5"/> Detail & Edit Data: {selectedSantri.nama_lengkap}</h3>
+              <IconButton 
+                type="button" 
+                onClick={() => setSelectedSantri(null)} 
+                icon={<X className="w-5 h-5"/>}
+                label="Tutup"
+                variant="ghost"
+                size="sm"
+              />
+            </div>
             <div className="p-6 overflow-y-auto"><form id="editForm" onSubmit={handleSubmitEdit}><FormFields dataTarget={selectedSantri} onChange={handleInputChange} onRegionChange={handleRegionChange} /></form></div>
-            <div className="px-6 py-4 border-t bg-gray-50 flex justify-end gap-2"><button type="button" onClick={() => setSelectedSantri(null)} className="px-4 py-2 text-gray-600 bg-gray-200 rounded-lg text-sm font-semibold">Batal</button><button type="submit" form="editForm" className="px-4 py-2 flex items-center gap-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold"><Save className="w-4 h-4"/> Simpan Perubahan</button></div>
+            <div className="px-6 py-4 border-t bg-gray-50 flex justify-end gap-2">
+              <IconButton 
+                type="button" 
+                onClick={() => setSelectedSantri(null)} 
+                label="Batal"
+                icon={<X className="w-4 h-4" />}
+                variant="gray"
+              />
+              <IconButton 
+                type="submit" 
+                form="editForm" 
+                label="Simpan Perubahan"
+                icon={<Save className="w-4 h-4"/>}
+                variant="emerald"
+              />
+            </div>
           </div>
         </div>
       )}
+
+      {/* MODAL REVIEW NAMA DOBEL & STANDARISASI TITLE CASE */}
+      <DuplicateReviewModal
+        isOpen={isDuplicateModalOpen}
+        onClose={() => setIsDuplicateModalOpen(false)}
+        onDataChanged={fetchData}
+      />
     </div>
   );
 }

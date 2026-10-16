@@ -1,5 +1,6 @@
 import { useState, useMemo, memo } from 'react';
 import { Calendar, BarChart3, Users, ListFilter, Crown, ChevronDown } from 'lucide-react';
+import { formatSantriName } from '../../utils/nameFormat';
 
 interface GrafikAnalyticsProps {
   logs: any[];
@@ -28,7 +29,8 @@ export const GrafikAnalytics = memo(function GrafikAnalytics({
     const groupedDetails: Record<string, any[]> = {};
 
     filtered.forEach(l => {
-      const nama = l.santri?.nama_lengkap || l.nama || 'Santri';
+      const rawName = l.santri?.nama_lengkap || l.nama || 'Santri';
+      const nama = formatSantriName(rawName);
       const jenisNama = l.master_jenis?.nama || l.jenis || 'Umum';
 
       // Hitung per Santri
@@ -59,7 +61,7 @@ export const GrafikAnalytics = memo(function GrafikAnalytics({
         return {
           jenis,
           total,
-          topName: topEntry?.[0] || '-',
+          topName: topEntry?.[0] ? formatSantriName(topEntry[0]) : '-',
           topCount: topEntry?.[1] || 0
         };
       })

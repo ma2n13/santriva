@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback, memo } from 'react';
 import { ChevronLeft, ChevronRight, FileSpreadsheet, Printer, Trash2, Calendar, AlertCircle } from 'lucide-react';
 import { exportAttendanceToExcel, exportAttendanceToPrint } from '../../utils/exportAttendance';
+import { formatSantriName } from '../../utils/nameFormat';
 
 const INDO_DAY_NAMES = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
 
@@ -76,7 +77,7 @@ export const HistoryGrid = memo(function HistoryGrid({
 
   const handleExportExcel = useCallback(() => {
     exportAttendanceToExcel({
-      nama,
+      nama: formatSantriName(nama),
       kelas,
       asrama,
       logs,
@@ -87,7 +88,7 @@ export const HistoryGrid = memo(function HistoryGrid({
 
   const handleExportPrint = useCallback(() => {
     exportAttendanceToPrint({
-      nama,
+      nama: formatSantriName(nama),
       kelas,
       asrama,
       logs,

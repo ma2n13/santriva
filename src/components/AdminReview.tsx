@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { CheckCircle, XCircle, ArrowLeft, Clock, Eye, Edit3, AlertTriangle } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { formatSantriName } from '../utils/nameFormat';
+import { IconButton, IconButtonLink } from './common/IconButton';
 
 // Mendefinisikan urutan dan ejaan label yang benar, termasuk huruf kapital untuk singkatan
 const REVIEW_FIELDS = [
@@ -101,6 +102,10 @@ export default function AdminReview() {
         }
       });
 
+      if (finalData.nama_lengkap) {
+        finalData.nama_lengkap = formatSantriName(finalData.nama_lengkap);
+      }
+
       // 4. Eksekusi melalui RPC PostgreSQL Transaksional (ACID)
       const { error: rpcErr } = await supabase.rpc('approve_santri_submission', {
         p_submission_id: selectedItem.id,
@@ -191,7 +196,7 @@ export default function AdminReview() {
   return (
     <div className="max-w-7xl mx-auto p-4 bg-white shadow-xl rounded-2xl min-h-screen">
       <div className="flex items-center gap-4 border-b pb-4 mb-6">
-        <Link to="/" className="p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors"><ArrowLeft className="w-5 h-5"/></Link>
+        <IconButtonLink to="/" label="Kembali" icon={<ArrowLeft className="w-5 h-5"/>} variant="gray" size="sm" />
         <h2 className="text-2xl font-bold text-gray-800">Review Pengajuan Data</h2>
       </div>
 
@@ -218,7 +223,9 @@ export default function AdminReview() {
                   </span>
                   <span className="text-xs text-gray-400 flex items-center gap-1"><Clock className="w-3 h-3"/> {new Date(p.created_at).toLocaleDateString()}</span>
                 </div>
-                <h4 className="font-bold text-gray-800 text-sm">{p.data_pengajuan.nama_lengkap || '(Tanpa Nama)'}</h4>
+                <h4 className="font-bold text-gray-800 text-sm">
+                  {p.data_pengajuan?.nama_lengkap ? formatSantriName(p.data_pengajuan.nama_lengkap) : '(Tanpa Nama)'}
+                </h4>
                 <p className="text-xs text-gray-500 mt-1">{p.data_pengajuan.alamat_jalan || p.data_pengajuan.desa_kelurahan || 'Alamat tidak diisi'}</p>
               </div>
             ))}
@@ -295,14 +302,23 @@ export default function AdminReview() {
                 </div>
 
                 {/* Action Buttons Pinned at Bottom */}
-                <div className="flex gap-4 border-t pt-4 bg-white">
-                  <button disabled={isSubmitting} onClick={handleApprove} className="flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white font-bold py-3.5 rounded-xl flex justify-center items-center gap-2 transition-colors shadow-sm">
-                    {isSubmitting ? <span className="animate-spin text-xl">↻</span> : <CheckCircle className="w-5 h-5"/>} 
-                    {isSubmitting ? 'Menyimpan...' : 'Setujui & Simpan ke Induk'}
-                  </button>
-                  <button disabled={isSubmitting} onClick={handleReject} className="flex-1 bg-rose-100 hover:bg-rose-200 disabled:bg-gray-100 text-rose-700 disabled:text-gray-400 font-bold py-3.5 rounded-xl flex justify-center items-center gap-2 transition-colors">
-                    <XCircle className="w-5 h-5"/> Tolak Data
-                  </button>
+                <div className="flex gap-4 border-t pt-4 bg-white justify-end">
+                  <IconButton
+                    disabled={isSubmitting}
+                    onClick={handleReject}
+                    label="Tolak Data"
+                    icon={<XCircle className="w-5 h-5"/>}
+                    variant="rose"
+                    size="lg"
+                  />
+                  <IconButton
+                    disabled={isSubmitting}
+                    onClick={handleApprove}
+                    label={isSubmitting ? 'Menyimpan...' : 'Setujui & Simpan ke Induk'}
+                    icon={<CheckCircle className="w-5 h-5"/>}
+                    variant="emerald"
+                    size="lg"
+                  />
                 </div>
               </div>
             )}

@@ -1,5 +1,6 @@
 import { useMemo, memo } from 'react';
 import { TrendingUp, AlertTriangle } from 'lucide-react';
+import { formatSantriName } from '../../utils/nameFormat';
 
 interface TopViolatorEntry {
   santriId: string;
@@ -123,7 +124,7 @@ export const TopViolators = memo(function TopViolators({ logs, onSelectSantri }:
                       </span>
                       <div className="truncate">
                         <span className="text-[11px] font-semibold text-gray-700 truncate group-hover:text-emerald-800 transition-colors block">
-                          {santri.nama}
+                          {formatSantriName(santri.nama)}
                         </span>
                         {(santri.kelas || santri.asrama) && (
                           <span className="text-[9px] text-gray-400 block leading-tight truncate">

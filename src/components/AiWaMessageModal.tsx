@@ -10,6 +10,7 @@ import {
   Sparkles, X, Send, Copy, Check, Key, 
   ExternalLink, RefreshCw, Heart, FileText, AlertCircle
 } from 'lucide-react';
+import { IconButton } from './common/IconButton';
 
 interface AiWaMessageModalProps {
   isOpen: boolean;
@@ -130,13 +131,14 @@ export default function AiWaMessageModal({
               </p>
             </div>
           </div>
-          <button 
+          <IconButton 
             type="button"
             onClick={onClose} 
-            className="p-1.5 rounded-full hover:bg-white/20 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+            icon={<X className="w-5 h-5" />}
+            label="Tutup"
+            variant="ghost"
+            size="sm"
+          />
         </div>
 
         {/* KONTEN UTAMA */}
@@ -189,13 +191,14 @@ export default function AiWaMessageModal({
                   onChange={(e) => setApiKey(e.target.value)}
                   className="flex-1 border border-emerald-300 rounded-xl p-2.5 text-xs bg-white outline-none focus:ring-2 focus:ring-emerald-600 font-mono"
                 />
-                <button
+                <IconButton
                   type="button"
                   onClick={handleSaveApiKey}
-                  className="px-4 py-2 bg-emerald-800 hover:bg-emerald-900 text-white text-xs font-bold rounded-xl transition-all"
-                >
-                  Simpan
-                </button>
+                  label="Simpan Kunci"
+                  icon={<Check className="w-4 h-4" />}
+                  variant="emerald"
+                  size="sm"
+                />
               </div>
             </div>
           )}
@@ -277,24 +280,15 @@ export default function AiWaMessageModal({
             <span className="text-xs text-gray-500 font-medium">
               Data: <b>{logs.length} catatan</b> pada periode <b>{periode}</b>
             </span>
-            <button
+            <IconButton
               type="button"
               disabled={isGenerating}
               onClick={handleGenerate}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-700 to-teal-700 hover:from-emerald-800 hover:to-teal-800 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-900/15 transition-all disabled:opacity-60"
-            >
-              {isGenerating ? (
-                <>
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                  Menyusun Pesan...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                  Susun Ulang dengan AI
-                </>
-              )}
-            </button>
+              label={isGenerating ? 'Menyusun Pesan...' : 'Susun Ulang AI'}
+              icon={isGenerating ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5 text-amber-300" />}
+              variant="emerald"
+              size="sm"
+            />
           </div>
 
           {/* Editor Pratinjau Teks Pesan WhatsApp */}
@@ -319,36 +313,25 @@ export default function AiWaMessageModal({
         {/* FOOTER ACTIONS */}
         <div className="px-6 py-4 bg-white border-t border-gray-200 flex flex-col sm:flex-row justify-between items-center gap-3">
           <div className="text-xs text-gray-500 font-medium w-full sm:w-auto text-center sm:text-left">
-            Tujuan: <b>{santri.no_hp_wali || santri.no_hp_santri || 'Nomor Belum Terisi'}</b>
+            Tujuan: <b>{santri?.no_hp_wali || santri?.no_hp_santri || 'Nomor Belum Terisi'}</b>
           </div>
 
           <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-            <button
+            <IconButton
               type="button"
               onClick={handleCopy}
-              className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl border border-gray-300 bg-gray-50 hover:bg-gray-100 text-gray-700 text-xs font-bold transition-colors"
-            >
-              {isCopied ? (
-                <>
-                  <Check className="w-3.5 h-3.5 text-emerald-600" />
-                  Tersalin!
-                </>
-              ) : (
-                <>
-                  <Copy className="w-3.5 h-3.5" />
-                  Salin Teks
-                </>
-              )}
-            </button>
+              label={isCopied ? 'Tersalin!' : 'Salin Teks'}
+              icon={isCopied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+              variant="gray"
+            />
 
-            <button
+            <IconButton
               type="button"
               onClick={handleOpenWhatsApp}
-              className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#25D366] to-[#128C7E] hover:from-[#128C7E] hover:to-[#075E54] text-white text-xs font-bold shadow-md shadow-emerald-900/20 transition-all"
-            >
-              <Send className="w-3.5 h-3.5" />
-              Buka di WhatsApp
-            </button>
+              label="Buka di WhatsApp"
+              icon={<Send className="w-3.5 h-3.5" />}
+              variant="emerald"
+            />
           </div>
         </div>
 

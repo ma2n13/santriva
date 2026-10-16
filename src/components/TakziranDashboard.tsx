@@ -1,14 +1,19 @@
 import React, { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import { supabase } from '../lib/supabase';
 import { 
-  PenTool, History, Settings, Search, Calendar, FileText, CheckCircle, 
-  Save, Plus, Trash2, CheckSquare, Square, ShieldAlert, AlertCircle, 
-  BarChart3, ArrowUpDown, Tag, Edit3, X, Check
+  PenTool, History, Settings, Search, CheckCircle, 
+  Save, Plus, Trash2, ShieldAlert, AlertCircle, 
+  BarChart3, ArrowUpDown, Tag, Edit3, X, Check,
+  RefreshCw, Database, CopyCheck, CheckSquare
 } from 'lucide-react';
 import AiWaMessageModal from './AiWaMessageModal';
 import TopViolators from './takziran/TopViolators';
 import SantriAccordionItem from './takziran/SantriAccordionItem';
 import GrafikAnalytics from './takziran/GrafikAnalytics';
+import LegacySyncModal from './takziran/LegacySyncModal';
+import DuplicateReviewModal from './DuplicateReviewModal';
+import { formatSantriName } from '../utils/nameFormat';
+import { IconButton } from './common/IconButton';
 
 const getTodayDate = () => new Date().toISOString().split('T')[0];
 const getThirtyDaysAgoDate = () => {
@@ -29,26 +34,23 @@ const SantriInputCard = memo(({
   return (
     <div 
       onClick={() => onToggle(santri.id)}
-      className={`p-3 rounded-xl border-2 cursor-pointer transition-all flex items-center gap-3 select-none ${
+      className={`px-2 py-2 rounded-xl text-center cursor-pointer select-none border transition-all duration-150 flex flex-col items-center justify-center min-h-[50px] ${
         isSelected 
-          ? 'bg-emerald-50 border-emerald-500 shadow-md transform scale-[1.01]' 
-          : 'bg-white border-gray-100 hover:border-emerald-200 shadow-xs'
+          ? 'bg-emerald-800 text-white font-bold border-emerald-800 shadow-md ring-2 ring-emerald-600/40 transform scale-[1.01]' 
+          : 'bg-white border-gray-200 text-gray-800 hover:border-emerald-400 hover:bg-emerald-50/40 shadow-xs'
       }`}
     >
-      <div className={`${isSelected ? 'text-emerald-600' : 'text-gray-300'} shrink-0`}>
-        {isSelected ? <CheckSquare className="w-5 h-5" /> : <Square className="w-5 h-5" />}
-      </div>
-      <div className="min-w-0 flex-1">
-        <h4 className={`font-bold text-sm truncate ${isSelected ? 'text-emerald-950 font-black' : 'text-gray-800'}`}>
-          {santri.nama_lengkap}
-        </h4>
-        <p className="text-xs text-gray-500 truncate">
-          Kelas: {santri.kelas || '-'} | Asrama: {santri.asrama || '-'}
-        </p>
-      </div>
+      <span className="w-full text-[11px] sm:text-xs font-bold leading-tight break-words text-balance">
+        {formatSantriName(santri.nama_lengkap)}
+      </span>
+      {(santri.kelas || santri.asrama) && (
+        <span className={`text-[9px] sm:text-[10px] truncate max-w-full mt-0.5 ${isSelected ? 'text-emerald-200' : 'text-gray-400'}`}>
+          {santri.kelas ? `Kls ${santri.kelas}` : ''}{santri.kelas && santri.asrama ? ' • ' : ''}{santri.asrama || ''}
+        </span>
+      )}
     </div>
   );
-}, (prevProps, nextProps) => prevProps.isSelected === nextProps.isSelected);
+}, (prevProps, nextProps) => prevProps.isSelected === nextProps.isSelected && prevProps.santri.id === nextProps.santri.id);
 
 interface TakziranDashboardProps {
   canInput?: boolean;
@@ -93,6 +95,12 @@ export default function TakziranDashboard({ canInput = true, currentUser }: Takz
 
   // Modal AI WA
   const [aiModalTarget, setAiModalTarget] = useState<{ santri: any; logs: any[] } | null>(null);
+
+  // Modal Sinkronisasi Legacy santri-app
+  const [showSyncModal, setShowSyncModal] = useState(false);
+
+  // Modal Review Duplikat & Standarisasi Nama
+  const [showDuplicateModal, setShowDuplicateModal] = useState(false);
 
   // Helper Toast
   const showToast = useCallback((msg: string, type: 'success' | 'error' = 'success') => {
@@ -185,12 +193,17 @@ export default function TakziranDashboard({ canInput = true, currentUser }: Takz
     return map;
   }, [prestasiList]);
 
-  // Ekstrak Semua Tag Unik (Kelas & Asrama)
+  // Ekstrak Semua Tag Unik (Kelas & Asrama / Label)
   const allUniqueTags = useMemo(() => {
     const tags = new Set<string>();
     santriList.forEach(s => {
       if (s.kelas) tags.add(`Kls ${s.kelas}`);
-      if (s.asrama) tags.add(s.asrama);
+      if (s.asrama) {
+        s.asrama.split(',').forEach((t: string) => {
+          const trimmed = t.trim();
+          if (trimmed) tags.add(trimmed);
+        });
+      }
     });
     return Array.from(tags).sort();
   }, [santriList]);
@@ -218,10 +231,11 @@ export default function TakziranDashboard({ canInput = true, currentUser }: Takz
       });
     }
 
-    // Filter Tag (Kelas & Asrama)
+    // Filter Tag (Kelas & Asrama / Label)
     if (selectedTags.length > 0) {
       list = list.filter(s => {
-        const studentTags = [`Kls ${s.kelas}`, s.asrama].filter(Boolean);
+        const asramaTags = (s.asrama || '').split(',').map((t: string) => t.trim()).filter(Boolean);
+        const studentTags = [`Kls ${s.kelas}`, ...asramaTags].filter(Boolean);
         return selectedTags.some(tag => studentTags.includes(tag));
       });
     }
@@ -264,6 +278,20 @@ export default function TakziranDashboard({ canInput = true, currentUser }: Takz
 
   const handleToggleSantriInput = useCallback((id: string) => {
     setSelectedSantri(prev => ({ ...prev, [id]: !prev[id] }));
+  }, []);
+
+  const handleSelectAllVisible = useCallback(() => {
+    setSelectedSantri(prev => {
+      const next = { ...prev };
+      inputFilteredSantri.forEach(s => {
+        next[s.id] = true;
+      });
+      return next;
+    });
+  }, [inputFilteredSantri]);
+
+  const handleClearSelection = useCallback(() => {
+    setSelectedSantri({});
   }, []);
 
   const handleToggleExpandSantri = useCallback((santriId: string) => {
@@ -522,51 +550,81 @@ export default function TakziranDashboard({ canInput = true, currentUser }: Takz
   );
 
   return (
-    <div className="bg-white md:rounded-2xl md:shadow-xl border-gray-200 overflow-hidden min-h-[88vh] flex flex-col md:m-4 md:border">
+    <div className="w-full bg-white rounded-3xl shadow-xl shadow-emerald-950/5 border border-emerald-900/10 overflow-hidden min-h-[calc(100vh-6rem)] flex flex-col">
       {/* HEADER NAVIGASI DASHBOARD */}
-      <div className="bg-emerald-900 text-white p-4 sm:p-6 pb-0 shadow-xs border-b border-emerald-800">
-        <div className="flex flex-wrap justify-between items-center mb-4 gap-2">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 bg-emerald-800/80 rounded-xl border border-emerald-700">
-              <ShieldAlert className="w-6 h-6 text-amber-400" />
+      <div className="bg-gradient-to-r from-[#032219] via-[#043325] to-[#021812] text-white p-3 sm:p-6 pb-0 shadow-xs border-b border-emerald-800">
+        <div className="flex flex-wrap justify-between items-center mb-2 sm:mb-4 gap-2">
+          <div className="flex items-center gap-2 sm:gap-2.5">
+            <div className="p-1.5 sm:p-2 bg-emerald-800/80 rounded-xl border border-emerald-700">
+              <ShieldAlert className="w-5 h-5 sm:w-6 sm:h-6 text-amber-400" />
             </div>
             <div>
-              <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white flex items-center gap-2">
+              <h2 className="text-lg sm:text-2xl font-black tracking-tight text-white flex items-center gap-2">
                 Absensi & Kedisiplinan Santri
               </h2>
-              <p className="text-xs text-emerald-200 font-medium">
+              <p className="hidden sm:block text-xs text-emerald-200 font-medium">
                 Pencatatan Kehadiran, Takziran, Kalender, Analitik & Asisten AI WhatsApp
               </p>
             </div>
           </div>
+
+          <div className="flex items-center gap-2">
+            <IconButton
+              onClick={() => setShowDuplicateModal(true)}
+              label="Review Duplikat"
+              icon={<CopyCheck className="w-3.5 h-3.5 text-emerald-400" />}
+              variant="gradient-emerald"
+              size="sm"
+            />
+
+            <IconButton
+              onClick={() => setShowSyncModal(true)}
+              label="Sinkronisasi santri-app"
+              icon={<RefreshCw className="w-3.5 h-3.5 text-amber-400" />}
+              variant="gradient-amber"
+              size="sm"
+            />
+          </div>
         </div>
 
-        {/* TAB BUTTONS */}
+        {/* TAB BUTTONS (Icon-only by default, expand on hover/active/click) */}
         <div className="flex gap-1 overflow-x-auto scrollbar-hide text-xs sm:text-sm font-bold">
           {canInput && (
             <button
               onClick={() => setActiveTab('input')}
-              className={`flex items-center gap-2 px-4 sm:px-5 py-3 rounded-t-xl whitespace-nowrap transition-all ${
+              title="Input Massal"
+              className={`group flex items-center p-2.5 sm:py-3 rounded-t-xl whitespace-nowrap transition-all select-none ${
                 activeTab === 'input'
-                  ? 'bg-gray-50 text-emerald-900 shadow-xs'
-                  : 'text-emerald-100 hover:bg-emerald-800/60'
+                  ? 'bg-gray-50 text-emerald-900 shadow-xs px-3.5'
+                  : 'text-emerald-100 hover:bg-emerald-800/60 px-2.5 hover:px-3.5'
               }`}
             >
-              <PenTool className="w-4 h-4" /> Input Massal
+              <PenTool className="w-4 h-4 shrink-0" />
+              <span className={`overflow-hidden whitespace-nowrap transition-all duration-300 font-bold ${
+                activeTab === 'input' ? 'max-w-xs opacity-100 ml-2' : 'max-w-0 opacity-0 group-hover:max-w-xs group-hover:opacity-100 group-hover:ml-2'
+              }`}>
+                Input Massal
+              </span>
             </button>
           )}
 
           <button
             onClick={() => setActiveTab('takziran')}
-            className={`flex items-center gap-2 px-4 sm:px-5 py-3 rounded-t-xl whitespace-nowrap transition-all ${
+            title="Takziran Aktif"
+            className={`group relative flex items-center p-2.5 sm:py-3 rounded-t-xl whitespace-nowrap transition-all select-none ${
               activeTab === 'takziran'
-                ? 'bg-gray-50 text-emerald-900 shadow-xs'
-                : 'text-emerald-100 hover:bg-emerald-800/60'
+                ? 'bg-gray-50 text-emerald-900 shadow-xs px-3.5'
+                : 'text-emerald-100 hover:bg-emerald-800/60 px-2.5 hover:px-3.5'
             }`}
           >
-            <AlertCircle className="w-4 h-4" /> Takziran
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span className={`overflow-hidden whitespace-nowrap transition-all duration-300 font-bold ${
+              activeTab === 'takziran' ? 'max-w-xs opacity-100 ml-2' : 'max-w-0 opacity-0 group-hover:max-w-xs group-hover:opacity-100 group-hover:ml-2'
+            }`}>
+              Takziran
+            </span>
             {totalPendingTazir > 0 && (
-              <span className="bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full ml-1 font-black animate-pulse">
+              <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.2 rounded-full ml-1.5 font-black animate-pulse shrink-0">
                 {totalPendingTazir}
               </span>
             )}
@@ -574,35 +632,53 @@ export default function TakziranDashboard({ canInput = true, currentUser }: Takz
 
           <button
             onClick={() => setActiveTab('riwayat')}
-            className={`flex items-center gap-2 px-4 sm:px-5 py-3 rounded-t-xl whitespace-nowrap transition-all ${
+            title="Riwayat & Kalender"
+            className={`group flex items-center p-2.5 sm:py-3 rounded-t-xl whitespace-nowrap transition-all select-none ${
               activeTab === 'riwayat'
-                ? 'bg-gray-50 text-emerald-900 shadow-xs'
-                : 'text-emerald-100 hover:bg-emerald-800/60'
+                ? 'bg-gray-50 text-emerald-900 shadow-xs px-3.5'
+                : 'text-emerald-100 hover:bg-emerald-800/60 px-2.5 hover:px-3.5'
             }`}
           >
-            <History className="w-4 h-4" /> Riwayat & Kalender
+            <History className="w-4 h-4 shrink-0" />
+            <span className={`overflow-hidden whitespace-nowrap transition-all duration-300 font-bold ${
+              activeTab === 'riwayat' ? 'max-w-xs opacity-100 ml-2' : 'max-w-0 opacity-0 group-hover:max-w-xs group-hover:opacity-100 group-hover:ml-2'
+            }`}>
+              Riwayat & Kalender
+            </span>
           </button>
 
           <button
             onClick={() => setActiveTab('grafik')}
-            className={`flex items-center gap-2 px-4 sm:px-5 py-3 rounded-t-xl whitespace-nowrap transition-all ${
+            title="Grafik & Analitik"
+            className={`group flex items-center p-2.5 sm:py-3 rounded-t-xl whitespace-nowrap transition-all select-none ${
               activeTab === 'grafik'
-                ? 'bg-gray-50 text-emerald-900 shadow-xs'
-                : 'text-emerald-100 hover:bg-emerald-800/60'
+                ? 'bg-gray-50 text-emerald-900 shadow-xs px-3.5'
+                : 'text-emerald-100 hover:bg-emerald-800/60 px-2.5 hover:px-3.5'
             }`}
           >
-            <BarChart3 className="w-4 h-4" /> Grafik & Analitik
+            <BarChart3 className="w-4 h-4 shrink-0" />
+            <span className={`overflow-hidden whitespace-nowrap transition-all duration-300 font-bold ${
+              activeTab === 'grafik' ? 'max-w-xs opacity-100 ml-2' : 'max-w-0 opacity-0 group-hover:max-w-xs group-hover:opacity-100 group-hover:ml-2'
+            }`}>
+              Grafik & Analitik
+            </span>
           </button>
 
           <button
             onClick={() => setActiveTab('pengaturan')}
-            className={`flex items-center gap-2 px-4 sm:px-5 py-3 rounded-t-xl whitespace-nowrap transition-all ${
+            title="Master Kegiatan"
+            className={`group flex items-center p-2.5 sm:py-3 rounded-t-xl whitespace-nowrap transition-all select-none ${
               activeTab === 'pengaturan'
-                ? 'bg-gray-50 text-emerald-900 shadow-xs'
-                : 'text-emerald-100 hover:bg-emerald-800/60'
+                ? 'bg-gray-50 text-emerald-900 shadow-xs px-3.5'
+                : 'text-emerald-100 hover:bg-emerald-800/60 px-2.5 hover:px-3.5'
             }`}
           >
-            <Settings className="w-4 h-4" /> Master Kegiatan
+            <Settings className="w-4 h-4 shrink-0" />
+            <span className={`overflow-hidden whitespace-nowrap transition-all duration-300 font-bold ${
+              activeTab === 'pengaturan' ? 'max-w-xs opacity-100 ml-2' : 'max-w-0 opacity-0 group-hover:max-w-xs group-hover:opacity-100 group-hover:ml-2'
+            }`}>
+              Master Kegiatan
+            </span>
           </button>
         </div>
       </div>
@@ -622,7 +698,7 @@ export default function TakziranDashboard({ canInput = true, currentUser }: Takz
       )}
 
       {/* KONTEN UTAMA */}
-      <div className="p-4 sm:p-6 flex-1 bg-gray-50">
+      <div className="p-2.5 sm:p-6 flex-1 bg-gray-50 pb-24 sm:pb-8">
         {loadingInitial ? (
           <div className="py-20 text-center font-bold text-emerald-700 animate-pulse text-sm">
             Memuat data absensi & santri...
@@ -633,94 +709,49 @@ export default function TakziranDashboard({ canInput = true, currentUser }: Takz
             {/* TAB 1: INPUT MASSAL (ATTENDANCE CHECK-OFF)                     */}
             {/* ============================================================== */}
             {activeTab === 'input' && canInput && (
-              <div className="max-w-6xl mx-auto flex flex-col lg:flex-row gap-6">
-                <div className="w-full lg:w-1/3 space-y-4">
-                  <div className="bg-white p-5 rounded-2xl shadow-xs border border-gray-200 space-y-4 sticky top-4">
-                    <h3 className="font-extrabold text-sm text-gray-800 uppercase tracking-wide border-b border-gray-100 pb-2">
-                      Pengaturan Absen
-                    </h3>
-
-                    <div className="bg-amber-50 border-l-4 border-amber-500 text-amber-900 p-3 rounded-r-xl text-xs font-medium space-y-1">
-                      <b className="uppercase flex items-center gap-1 text-amber-800">
-                        <AlertCircle className="w-3.5 h-3.5" /> Panduan Pengisian:
-                      </b>
-                      <p>
-                        Klik pada nama santri yang <b>TIDAK HADIR / MELANGGAR</b>. Santri yang hadir tertib tidak perlu diklik.
-                      </p>
-                    </div>
-
-                    <div>
-                      <label className="text-xs font-bold text-gray-700 mb-1 flex items-center gap-1.5">
-                        <FileText className="w-4 h-4 text-emerald-600" /> Jenis Kegiatan (Master)
-                      </label>
-                      <select
-                        value={formData.jenis_id}
-                        onChange={e => setFormData({ ...formData, jenis_id: e.target.value })}
-                        className="w-full border-gray-200 p-2.5 rounded-xl bg-gray-50 border outline-none font-bold text-sm text-gray-800 focus:bg-white focus:ring-2 focus:ring-emerald-500"
-                      >
-                        <option value="">-- Pilih Jenis Kegiatan --</option>
-                        {jenisList.map(j => (
-                          <option key={j.id} value={j.id}>
-                            {j.nama}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="text-xs font-bold text-gray-700 mb-1 flex items-center gap-1.5">
-                        <Calendar className="w-4 h-4 text-emerald-600" /> Tanggal
-                      </label>
-                      <input
-                        type="date"
-                        value={formData.tgl_melanggar}
-                        onChange={e => setFormData({ ...formData, tgl_melanggar: e.target.value })}
-                        className="w-full border-gray-200 p-2.5 rounded-xl bg-gray-50 border outline-none font-bold text-sm text-gray-800 focus:bg-white focus:ring-2 focus:ring-emerald-500"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-xs font-bold text-gray-700 mb-1 flex items-center gap-1.5">
-                        <PenTool className="w-4 h-4 text-emerald-600" /> Catatan Tambahan (Opsional)
-                      </label>
-                      <textarea
-                        value={formData.keterangan}
-                        onChange={e => setFormData({ ...formData, keterangan: e.target.value })}
-                        placeholder="Cth: Izin pulang, sakit tanpa surat, terlambat..."
-                        rows={2}
-                        className="w-full border-gray-200 p-2.5 rounded-xl bg-gray-50 border outline-none text-xs focus:bg-white focus:ring-2 focus:ring-emerald-500"
-                      />
-                    </div>
-
-                    <div className="pt-2">
-                      <button
-                        onClick={handleSubmitMassal}
-                        disabled={isSubmitting || selectedCount === 0}
-                        className="w-full bg-emerald-700 hover:bg-emerald-800 disabled:bg-gray-300 text-white font-extrabold py-3.5 rounded-xl flex justify-center items-center gap-2 shadow-md transition-all cursor-pointer"
-                      >
-                        <Save className="w-4 h-4" />
-                        {isSubmitting ? 'Menyimpan...' : `Simpan Absen (${selectedCount} Santri)`}
-                      </button>
-                    </div>
-                  </div>
+              <div className="max-w-4xl mx-auto w-full bg-white p-3.5 sm:p-5 rounded-2xl border border-gray-200 shadow-sm flex flex-col gap-3">
+                {/* PANDUAN PENTING BANNER */}
+                <div className="bg-amber-100/90 border-l-4 border-amber-500 text-amber-950 p-2.5 sm:p-3 rounded-lg shadow-xs text-xs font-medium flex items-start gap-2">
+                  <span className="text-amber-600 text-base shrink-0 leading-none">⚠️</span>
+                  <span className="leading-relaxed">
+                    <b className="uppercase">Panduan Penting:</b> Silakan <b>KLIK</b> pada nama santri yang <b>TIDAK HADIR</b> atau <b>MELANGGAR</b>. Santri yang hadir/tertib tidak perlu Anda klik.
+                  </span>
                 </div>
 
-                <div className="w-full lg:w-2/3 bg-white p-5 rounded-2xl shadow-xs border border-gray-200 flex flex-col min-h-[65vh]">
-                  <div className="flex flex-col sm:flex-row gap-3 mb-4">
-                    <div className="relative flex-1">
-                      <Search className="absolute left-3.5 top-3 w-4 h-4 text-gray-400" />
-                      <input
-                        type="text"
-                        value={inputSearchQuery}
-                        onChange={e => setInputSearchQuery(e.target.value)}
-                        placeholder="Cari nama santri..."
-                        className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 outline-none font-semibold text-xs focus:bg-white focus:ring-2 focus:ring-emerald-500"
-                      />
-                    </div>
+                {/* FORM BARIS ATAS: JENIS KEGIATAN, TANGGAL, KELAS */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 flex-none">
+                  {/* Jenis Kegiatan */}
+                  <div className="relative">
+                    <select
+                      value={formData.jenis_id}
+                      onChange={e => setFormData(p => ({ ...p, jenis_id: e.target.value }))}
+                      className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-xs font-bold text-gray-800 focus:outline-none focus:bg-white focus:ring-2 focus:ring-emerald-600 transition-all cursor-pointer"
+                    >
+                      <option value="">-- Pilih Jenis Kegiatan --</option>
+                      {jenisList.map(j => (
+                        <option key={j.id} value={j.id}>
+                          {j.nama}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Tanggal */}
+                  <div className="relative">
+                    <input
+                      type="date"
+                      value={formData.tgl_melanggar}
+                      onChange={e => setFormData(p => ({ ...p, tgl_melanggar: e.target.value }))}
+                      className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-xs font-bold text-gray-800 focus:outline-none focus:bg-white focus:ring-2 focus:ring-emerald-600 transition-all cursor-pointer"
+                    />
+                  </div>
+
+                  {/* Filter Kelas */}
+                  <div className="relative">
                     <select
                       value={inputFilterKelas}
                       onChange={e => setInputFilterKelas(e.target.value)}
-                      className="p-2.5 rounded-xl border border-gray-200 bg-gray-50 outline-none font-bold text-xs sm:w-40 focus:bg-white focus:ring-2 focus:ring-emerald-500"
+                      className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-xs font-bold text-gray-800 focus:outline-none focus:bg-white focus:ring-2 focus:ring-emerald-600 transition-all cursor-pointer"
                     >
                       <option value="">Semua Kelas</option>
                       {listKelasInput.map((k: any) => (
@@ -730,24 +761,87 @@ export default function TakziranDashboard({ canInput = true, currentUser }: Takz
                       ))}
                     </select>
                   </div>
+                </div>
 
-                  <div className="flex-1 overflow-y-auto pr-1 pb-4 custom-scrollbar">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                      {inputFilteredSantri.map(santri => (
-                        <SantriInputCard
-                          key={santri.id}
-                          santri={santri}
-                          isSelected={!!selectedSantri[santri.id]}
-                          onToggle={handleToggleSantriInput}
-                        />
-                      ))}
-                      {inputFilteredSantri.length === 0 && (
-                        <div className="col-span-full text-center text-gray-400 py-16 font-medium text-xs italic">
-                          Tidak ada santri yang sesuai kriteria pencarian.
-                        </div>
-                      )}
-                    </div>
+                {/* CARI SANTRI + QUICK ACTIONS (PILIH SEMUA & RESET) */}
+                <div className="flex gap-2 items-center flex-none">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      type="text"
+                      value={inputSearchQuery}
+                      onChange={e => setInputSearchQuery(e.target.value)}
+                      placeholder="Cari Santri..."
+                      className="w-full bg-gray-50 border border-gray-200 rounded-lg pl-9 pr-8 py-2 text-xs text-gray-800 placeholder:text-gray-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600 transition-colors"
+                    />
+                    {inputSearchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setInputSearchQuery('')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-500 font-bold text-xs"
+                      >
+                        ✕
+                      </button>
+                    )}
                   </div>
+
+                  <IconButton
+                    type="button"
+                    onClick={handleSelectAllVisible}
+                    label="Pilih Semua"
+                    icon={<CheckSquare className="w-3.5 h-3.5" />}
+                    variant="gray"
+                    size="sm"
+                  />
+
+                  {selectedCount > 0 && (
+                    <IconButton
+                      type="button"
+                      onClick={handleClearSelection}
+                      label="Reset Pilihan"
+                      icon={<X className="w-3.5 h-3.5" />}
+                      variant="rose"
+                      size="sm"
+                    />
+                  )}
+                </div>
+
+                {/* GRID NAMA SANTRI (2 Kolom di HP, 3 di SM, 4 di MD) */}
+                <div className="bg-gray-50/70 rounded-xl border border-gray-200 p-2 overflow-y-auto grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 content-start gap-1.5 sm:gap-2 max-h-[50vh] sm:max-h-[55vh] custom-scrollbar">
+                  {inputFilteredSantri.map(santri => (
+                    <SantriInputCard
+                      key={santri.id}
+                      santri={santri}
+                      isSelected={!!selectedSantri[santri.id]}
+                      onToggle={handleToggleSantriInput}
+                    />
+                  ))}
+                  {inputFilteredSantri.length === 0 && (
+                    <div className="col-span-full text-center text-gray-400 text-xs py-12 italic">
+                      Santri tidak ditemukan
+                    </div>
+                  )}
+                </div>
+
+                {/* FORM BARIS BAWAH: CATATAN + TOMBOL SIMPAN */}
+                <div className="pt-2 border-t border-gray-200 flex flex-col sm:flex-row gap-2 flex-none">
+                  <input
+                    type="text"
+                    placeholder="Catatan (Opsional)..."
+                    value={formData.keterangan}
+                    onChange={e => setFormData(p => ({ ...p, keterangan: e.target.value }))}
+                    className="flex-1 min-w-0 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-xs text-gray-800 placeholder:text-gray-400 focus:outline-none focus:bg-white focus:ring-2 focus:ring-emerald-600 font-medium"
+                  />
+                  <IconButton
+                    type="button"
+                    onClick={handleSubmitMassal}
+                    disabled={isSubmitting || selectedCount === 0}
+                    label={isSubmitting ? 'Menyimpan...' : 'Simpan Absen'}
+                    icon={<Save className="w-4 h-4" />}
+                    variant="emerald"
+                    badge={selectedCount > 0 ? selectedCount : null}
+                    badgeColor="bg-emerald-950"
+                  />
                 </div>
               </div>
             )}
@@ -784,13 +878,13 @@ export default function TakziranDashboard({ canInput = true, currentUser }: Takz
                       )}
                     </div>
 
-                    <button
+                    <IconButton
                       onClick={() => setSortMode(prev => (prev === 'count' ? 'alpha' : 'count'))}
-                      className="px-4 py-2.5 rounded-xl bg-gray-50 hover:bg-emerald-50 border border-gray-200 text-xs font-bold text-gray-700 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-                    >
-                      <ArrowUpDown className="w-3.5 h-3.5 text-emerald-700" />
-                      <span>Urutan: {sortMode === 'count' ? 'Terbanyak' : 'A-Z'}</span>
-                    </button>
+                      label={`Urutan: ${sortMode === 'count' ? 'Terbanyak' : 'A-Z'}`}
+                      icon={<ArrowUpDown className="w-3.5 h-3.5 text-emerald-700" />}
+                      variant="gray"
+                      size="sm"
+                    />
                   </div>
 
                   {/* TagFilterBar: Chips Kelas & Asrama */}
@@ -817,12 +911,13 @@ export default function TakziranDashboard({ canInput = true, currentUser }: Takz
                         );
                       })}
                       {selectedTags.length > 0 && (
-                        <button
+                        <IconButton
                           onClick={() => setSelectedTags([])}
-                          className="text-[11px] text-red-600 font-bold hover:underline px-2 shrink-0 cursor-pointer"
-                        >
-                          Reset
-                        </button>
+                          label="Reset Filter"
+                          icon={<X className="w-3 h-3 text-red-600" />}
+                          variant="ghost"
+                          size="sm"
+                        />
                       )}
                     </div>
                   )}
@@ -896,6 +991,55 @@ export default function TakziranDashboard({ canInput = true, currentUser }: Takz
             {/* ============================================================== */}
             {activeTab === 'pengaturan' && (
               <div className="max-w-2xl mx-auto space-y-6">
+                {/* KARTU SINKRONISASI LEGACY SANTRI-APP */}
+                <div className="bg-gradient-to-br from-emerald-950 via-emerald-900 to-[#021812] text-white p-6 rounded-2xl shadow-md border border-emerald-800 space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 bg-amber-400/20 text-amber-300 rounded-xl border border-amber-400/30">
+                      <Database className="w-5 h-5 text-amber-400" />
+                    </div>
+                    <div>
+                      <h3 className="font-extrabold text-sm text-white tracking-wide">
+                        Sinkronisasi Data dari santri-app
+                      </h3>
+                      <p className="text-xs text-emerald-200/80">
+                        Pindahkan 9.380 riwayat takziran, tandai 120 santri aktif, dan salin seluruh label/tag
+                      </p>
+                    </div>
+                  </div>
+                  <div className="pt-2 flex justify-end">
+                    <IconButton
+                      onClick={() => setShowSyncModal(true)}
+                      label="Buka Panel Sinkronisasi"
+                      icon={<RefreshCw className="w-3.5 h-3.5" />}
+                      variant="gradient-amber"
+                    />
+                  </div>
+                </div>
+
+                {/* KARTU REVIEW DUPLIKAT & STANDARISASI FORMAT NAMA */}
+                <div className="bg-gradient-to-br from-[#0c2b22] via-[#083a2d] to-[#042018] text-white p-6 rounded-2xl shadow-md border border-emerald-700/60 space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 bg-emerald-400/20 text-emerald-300 rounded-xl border border-emerald-400/30">
+                      <CopyCheck className="w-5 h-5 text-emerald-400" />
+                    </div>
+                    <div>
+                      <h3 className="font-extrabold text-sm text-white tracking-wide">
+                        Pemeriksaan Duplikat & Standarisasi Format Nama
+                      </h3>
+                      <p className="text-xs text-emerald-200/80">
+                        Cari nama dobel, gabungkan riwayat absensi santri, dan ubah massal seluruh nama database menjadi Title Case (Ahmad Said).
+                      </p>
+                    </div>
+                  </div>
+                  <div className="pt-2 flex justify-end">
+                    <IconButton
+                      onClick={() => setShowDuplicateModal(true)}
+                      label="Review Duplikat & Format"
+                      icon={<CopyCheck className="w-3.5 h-3.5 text-emerald-400" />}
+                      variant="gradient-emerald"
+                    />
+                  </div>
+                </div>
                 <div className="bg-white p-6 rounded-2xl shadow-xs border border-gray-200">
                   <h3 className="font-extrabold text-sm text-gray-800 uppercase tracking-wide mb-4">
                     Tambah Jenis Kegiatan Baru
@@ -909,13 +1053,13 @@ export default function TakziranDashboard({ canInput = true, currentUser }: Takz
                       className="flex-1 border border-gray-200 p-2.5 rounded-xl bg-gray-50 outline-none text-xs font-semibold focus:bg-white focus:ring-2 focus:ring-emerald-500"
                       required
                     />
-                    <button
+                    <IconButton
                       disabled={isAddingJenis}
                       type="submit"
-                      className="bg-emerald-700 hover:bg-emerald-800 text-white px-5 rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-xs cursor-pointer transition-colors"
-                    >
-                      <Plus className="w-4 h-4" /> Tambah
-                    </button>
+                      label="Tambah Jenis"
+                      icon={<Plus className="w-4 h-4" />}
+                      variant="emerald"
+                    />
                   </form>
                 </div>
 
@@ -939,39 +1083,39 @@ export default function TakziranDashboard({ canInput = true, currentUser }: Takz
                               onKeyDown={e => e.key === 'Enter' && handleUpdateJenis()}
                               className="flex-1 p-2 bg-white border border-emerald-400 rounded-lg text-xs outline-none focus:ring-1 focus:ring-emerald-500"
                             />
-                            <button
+                            <IconButton
                               onClick={handleUpdateJenis}
-                              className="p-2 bg-emerald-600 text-white rounded-lg shadow-xs hover:bg-emerald-700 cursor-pointer"
-                              title="Simpan"
-                            >
-                              <Check className="w-4 h-4" />
-                            </button>
-                            <button
+                              icon={<Check className="w-4 h-4" />}
+                              label="Simpan"
+                              variant="emerald"
+                              size="sm"
+                            />
+                            <IconButton
                               onClick={() => setEditingJenis(null)}
-                              className="p-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 cursor-pointer"
-                              title="Batal"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
+                              icon={<X className="w-4 h-4" />}
+                              label="Batal"
+                              variant="gray"
+                              size="sm"
+                            />
                           </div>
                         ) : (
                           <>
                             <span className="font-bold text-gray-800 flex-1">{j.nama}</span>
                             <div className="flex items-center gap-1">
-                              <button
+                              <IconButton
                                 onClick={() => setEditingJenis({ id: j.id, nama: j.nama })}
-                                className="text-blue-500 hover:bg-blue-50 p-2 rounded-lg transition-colors cursor-pointer"
-                                title="Edit Nama"
-                              >
-                                <Edit3 className="w-4 h-4" />
-                              </button>
-                              <button
+                                icon={<Edit3 className="w-4 h-4" />}
+                                label="Edit"
+                                variant="sky"
+                                size="sm"
+                              />
+                              <IconButton
                                 onClick={() => handleDeleteJenis(j.id)}
-                                className="text-red-500 hover:bg-red-50 p-2 rounded-lg transition-colors cursor-pointer"
-                                title="Hapus Jenis"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
+                                icon={<Trash2 className="w-4 h-4" />}
+                                label="Hapus"
+                                variant="rose"
+                                size="sm"
+                              />
                             </div>
                           </>
                         )}
@@ -1001,6 +1145,25 @@ export default function TakziranDashboard({ canInput = true, currentUser }: Takz
           periode={new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}
         />
       )}
+
+      {/* MODAL SINKRONISASI LEGACY SANTRI-APP */}
+      <LegacySyncModal
+        isOpen={showSyncModal}
+        onClose={() => setShowSyncModal(false)}
+        onComplete={() => {
+          fetchAllData();
+          showToast('Sinkronisasi data legacy santri-app berhasil!');
+        }}
+        currentSantriCount={santriList.length}
+        currentLogsCount={allLogs.length}
+      />
+
+      {/* MODAL REVIEW DUPLIKAT & STANDARISASI FORMAT NAMA */}
+      <DuplicateReviewModal
+        isOpen={showDuplicateModal}
+        onClose={() => setShowDuplicateModal(false)}
+        onDataChanged={fetchAllData}
+      />
     </div>
   );
 }

@@ -1,3 +1,57 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  body {
+    @apply selection:bg-amber-200 selection:text-emerald-950;
+  }
+}
+
+/* Modern slim scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(16, 185, 129, 0.25);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(16, 185, 129, 0.45);
+}
+
+/* =========================================================================
+   STANDAR DESAIN TOMBOL: ICON-ONLY SECARA DEFAULT, REVEAL TEKS SAAT HOVER / KLIK
+   ========================================================================= */
+@layer components {
+  .btn-icon-reveal {
+    @apply inline-flex items-center justify-center relative select-none cursor-pointer transition-all duration-300 ease-out overflow-hidden whitespace-nowrap active:scale-95;
+  }
+
+  .btn-icon-reveal .btn-label {
+    @apply max-w-0 opacity-0 overflow-hidden whitespace-nowrap transition-all duration-300 ease-out inline-block pointer-events-none;
+  }
+
+  .btn-icon-reveal:hover .btn-label,
+  .btn-icon-reveal:focus .btn-label,
+  .btn-icon-reveal:focus-visible .btn-label,
+  .btn-icon-reveal:active .btn-label,
+  .btn-icon-reveal.expanded .btn-label {
+    @apply max-w-xs opacity-100 ml-2 pointer-events-auto;
+  }
+
+  .btn-icon-reveal:hover,
+  .btn-icon-reveal:focus,
+  .btn-icon-reveal:focus-visible,
+  .btn-icon-reveal:active,
+  .btn-icon-reveal.expanded {
+    @apply px-3.5 shadow-md;
+  }
+}

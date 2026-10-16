@@ -3,6 +3,8 @@ import { useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import type { Santri } from '../types';
 import { CheckCircle, AlertCircle, Send, UserPlus, RefreshCw, Search, ShieldCheck, X } from 'lucide-react';
+import { formatSantriName } from '../utils/nameFormat';
+import { IconButton } from './common/IconButton';
 
 const API_WILAYAH = 'https://www.emsifa.com/api-wilayah-indonesia/api';
 
@@ -127,6 +129,9 @@ export default function PublicPendaftaran() {
     setIsSubmitting(true); setErrorMsg(null);
     try {
       const cleanData = { ...formData };
+      if (cleanData.nama_lengkap) {
+        cleanData.nama_lengkap = formatSantriName(cleanData.nama_lengkap);
+      }
       Object.keys(cleanData).forEach(key => { if (typeof (cleanData as any)[key] === 'string' && (cleanData as any)[key].trim() === '') (cleanData as any)[key] = null; });
       const payload = { jenis_pengajuan: jenisPengajuan, data_pengajuan: cleanData, santri_id: selectedSantriId || null };
       const { error } = await supabase.from('pengajuan_santri').insert([payload]);
@@ -142,21 +147,70 @@ export default function PublicPendaftaran() {
           <CheckCircle className="w-16 h-16 text-emerald-600 mx-auto mb-4" />
           <h2 className="text-2xl font-bold text-gray-800 mb-2">Alhamdulillah!</h2>
           <p className="text-gray-600 mb-6">Data Anda berhasil dikirim dan sedang ditinjau oleh Admin. Setelah disetujui, data akan masuk ke Sistem Induk.</p>
-          <button onClick={() => window.location.reload()} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-4 rounded-xl">Tutup</button>
+          <div className="flex justify-center">
+            <IconButton 
+              onClick={() => window.location.reload()} 
+              icon={<CheckCircle className="w-5 h-5" />}
+              label="Tutup & Muat Ulang"
+              variant="emerald"
+              size="lg"
+            />
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 py-10 px-4">
-      <div className="max-w-4xl mx-auto bg-white rounded-3xl shadow-2xl overflow-hidden">
-        <div className="bg-emerald-700 p-8 text-center text-white"><h1 className="text-3xl font-bold">Formulir Data Santri</h1></div>
+    <div className="min-h-screen bg-[#F8FAF9] py-8 sm:py-12 px-4 font-sans">
+      <div className="max-w-4xl mx-auto bg-white rounded-3xl shadow-2xl overflow-hidden border border-emerald-100">
+        <div className="bg-gradient-to-r from-[#032219] via-[#043325] to-[#021812] p-8 text-center text-white relative overflow-hidden">
+          <div className="relative z-10 flex flex-col items-center">
+            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-300 bg-emerald-950/70 border border-emerald-700/60 px-3 py-1 rounded-full mb-2">
+              Manajemen Pondok &amp; Madrasah
+            </span>
+            <h2 className="text-xl sm:text-2xl font-black tracking-tight font-display">
+              Daruttauhid Al-'Alawiyyah Jepara
+            </h2>
+            <h1 className="text-2xl sm:text-3xl font-black text-amber-400 mt-2 font-display">
+              Formulir Pendataan &amp; Update Santri
+            </h1>
+            <p className="text-xs text-emerald-200 mt-1 max-w-md">
+              Silakan lengkapi data santri secara akurat. Data akan diverifikasi oleh tim administrasi sebelum dicatat dalam buku induk.
+            </p>
+          </div>
+        </div>
 
         {!editId && (
           <div className="flex border-b">
-            <button onClick={() => {setJenisPengajuan('Baru'); setSelectedSantriId(null); setFormData(initialFormState);}} className={`flex-1 py-4 font-bold transition-colors ${jenisPengajuan === 'Baru' ? 'bg-emerald-50 text-emerald-700 border-b-4 border-emerald-600' : 'text-gray-500 hover:bg-gray-50'}`}><UserPlus className="w-5 h-5 inline mr-2"/> Pendaftar Baru</button>
-            <button onClick={() => {setJenisPengajuan('Update'); setSelectedSantriId(null); setFormData(initialFormState);}} className={`flex-1 py-4 font-bold transition-colors ${jenisPengajuan === 'Update' ? 'bg-blue-50 text-blue-700 border-b-4 border-blue-600' : 'text-gray-500 hover:bg-gray-50'}`}><RefreshCw className="w-5 h-5 inline mr-2"/> Edit Data Santri</button>
+            <button 
+              onClick={() => {setJenisPengajuan('Baru'); setSelectedSantriId(null); setFormData(initialFormState);}} 
+              title="Pendaftaran Santri Baru"
+              className={`group flex-1 py-4 font-bold transition-all flex items-center justify-center ${
+                jenisPengajuan === 'Baru' ? 'bg-emerald-50 text-emerald-700 border-b-4 border-emerald-600' : 'text-gray-500 hover:bg-gray-50'
+              }`}
+            >
+              <UserPlus className="w-5 h-5 shrink-0" />
+              <span className={`overflow-hidden whitespace-nowrap transition-all duration-300 font-bold ${
+                jenisPengajuan === 'Baru' ? 'max-w-xs opacity-100 ml-2' : 'max-w-0 opacity-0 group-hover:max-w-xs group-hover:opacity-100 group-hover:ml-2'
+              }`}>
+                Pendaftar Baru
+              </span>
+            </button>
+            <button 
+              onClick={() => {setJenisPengajuan('Update'); setSelectedSantriId(null); setFormData(initialFormState);}} 
+              title="Perbarui Data Santri"
+              className={`group flex-1 py-4 font-bold transition-all flex items-center justify-center ${
+                jenisPengajuan === 'Update' ? 'bg-blue-50 text-blue-700 border-b-4 border-blue-600' : 'text-gray-500 hover:bg-gray-50'
+              }`}
+            >
+              <RefreshCw className="w-5 h-5 shrink-0" />
+              <span className={`overflow-hidden whitespace-nowrap transition-all duration-300 font-bold ${
+                jenisPengajuan === 'Update' ? 'max-w-xs opacity-100 ml-2' : 'max-w-0 opacity-0 group-hover:max-w-xs group-hover:opacity-100 group-hover:ml-2'
+              }`}>
+                Edit Data Santri
+              </span>
+            </button>
           </div>
         )}
 
@@ -198,7 +252,14 @@ export default function PublicPendaftaran() {
                     <ShieldCheck className="w-5 h-5 text-emerald-600" />
                     <span>Verifikasi Identitas Santri</span>
                   </div>
-                  <button type="button" onClick={() => { setVerifyingSantri(null); setVerifyError(null); }} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5"/></button>
+                  <IconButton 
+                    type="button" 
+                    onClick={() => { setVerifyingSantri(null); setVerifyError(null); }} 
+                    icon={<X className="w-5 h-5"/>}
+                    label="Tutup"
+                    variant="ghost"
+                    size="sm"
+                  />
                 </div>
                 <p className="text-sm text-gray-600 mb-4 leading-relaxed">
                   Demi perlindungan data pribadi santri ananda <b>{verifyingSantri.nama_lengkap}</b>, silakan masukkan <b>Tanggal Lahir</b> (format YYYY-MM-DD) atau <b>NIS</b> santri untuk membuka formulir:
@@ -217,10 +278,21 @@ export default function PublicPendaftaran() {
                   </div>
                   {verifyError && <p className="text-xs text-red-600 font-semibold bg-red-50 p-2 rounded-lg border border-red-200">{verifyError}</p>}
                   <div className="flex gap-2 justify-end pt-2">
-                    <button type="button" onClick={() => { setVerifyingSantri(null); setVerifyError(null); }} className="px-4 py-2 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200">Batal</button>
-                    <button type="button" onClick={handleVerifySubmit} disabled={isVerifying} className="px-5 py-2 text-sm font-bold text-white bg-emerald-700 hover:bg-emerald-800 rounded-lg shadow disabled:opacity-50">
-                      {isVerifying ? 'Memeriksa...' : 'Verifikasi & Buka Data'}
-                    </button>
+                    <IconButton 
+                      type="button" 
+                      onClick={() => { setVerifyingSantri(null); setVerifyError(null); }} 
+                      icon={<X className="w-4 h-4" />}
+                      label="Batal"
+                      variant="gray"
+                    />
+                    <IconButton 
+                      type="button" 
+                      onClick={handleVerifySubmit} 
+                      disabled={isVerifying} 
+                      icon={isVerifying ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
+                      label={isVerifying ? 'Memeriksa...' : 'Verifikasi & Buka Data'}
+                      variant="emerald"
+                    />
                   </div>
                 </div>
               </div>
@@ -295,9 +367,14 @@ export default function PublicPendaftaran() {
               <div className="md:col-span-2"><label className="block text-sm font-semibold mb-1">Catatan Khusus (Riwayat Medis, dll)</label><textarea name="catatan" value={formData.catatan || ''} onChange={handleChange} rows={3} className="w-full border-gray-300 border p-2.5 rounded-lg"></textarea></div>
 
               <div className="md:col-span-2 mt-10 pt-6 border-t flex justify-end">
-                <button disabled={isSubmitting} type="submit" className="w-full sm:w-auto px-8 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-lg flex items-center justify-center gap-2">
-                  {isSubmitting ? <RefreshCw className="w-5 h-5 animate-spin"/> : <Send className="w-5 h-5"/>} Kirim Data Pengajuan
-                </button>
+                <IconButton 
+                  disabled={isSubmitting} 
+                  type="submit" 
+                  size="lg"
+                  variant="emerald"
+                  icon={isSubmitting ? <RefreshCw className="w-5 h-5 animate-spin"/> : <Send className="w-5 h-5"/>}
+                  label={isSubmitting ? 'Mengirim Data...' : 'Kirim Data Pengajuan'}
+                />
               </div>
             </div>
           )}

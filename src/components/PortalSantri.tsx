@@ -7,6 +7,7 @@ import {
   Wallet, Receipt, Building2, ExternalLink, MessageCircle, Info
 } from 'lucide-react';
 import type { SantriTagihan } from '../types';
+import { IconButton } from './common/IconButton';
 
 export default function PortalSantri() {
   const { kode } = useParams<{ kode: string }>();
@@ -268,12 +269,15 @@ export default function PortalSantri() {
             className="w-24 h-24 rounded-full border-4 border-amber-400 shadow-[0_0_20px_rgba(245,158,11,0.3)] object-cover bg-white"
             onError={(e) => { e.currentTarget.src = 'https://via.placeholder.com/150?text=Logo'; }} 
           />
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-black tracking-tight mb-2 text-amber-50 drop-shadow-md">
-              Sistem Informasi Manajemen
+          <div className="flex flex-col items-center">
+            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-300 bg-emerald-950/70 border border-emerald-700/60 px-3 py-1 rounded-full mb-2">
+              Manajemen Pondok &amp; Madrasah
+            </span>
+            <h1 className="text-2xl sm:text-3xl font-black tracking-tight mb-1 text-white font-display">
+              Daruttauhid Al-'Alawiyyah
             </h1>
-            <p className="text-amber-400 font-bold text-sm sm:text-base tracking-widest uppercase">
-              Daruttauhid Al-'Alawiyyah Jepara
+            <p className="text-amber-400 font-bold text-xs sm:text-sm tracking-widest uppercase">
+              Jepara &bull; Portal Informasi Wali Santri
             </p>
           </div>
         </div>
@@ -326,15 +330,21 @@ export default function PortalSantri() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`flex-1 min-w-[120px] py-3 px-4 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all duration-300 ${
+              title={tab.label}
+              className={`group flex-1 min-w-[50px] py-3 px-4 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center transition-all duration-300 ${
                 activeTab === tab.id 
                   ? 'bg-emerald-800 text-white shadow-md shadow-emerald-900/20' 
                   : 'text-gray-500 hover:bg-emerald-50 hover:text-emerald-800'
               }`}
             >
-              <tab.icon className="w-4 h-4" /> {tab.label}
+              <tab.icon className="w-4 h-4 shrink-0" />
+              <span className={`overflow-hidden whitespace-nowrap transition-all duration-300 ${
+                activeTab === tab.id ? 'max-w-xs opacity-100 ml-2' : 'max-w-0 opacity-0 group-hover:max-w-xs group-hover:opacity-100 group-hover:ml-2'
+              }`}>
+                {tab.label}
+              </span>
               {tab.badge ? (
-                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ml-1.5 ${
                   tab.badgeType === 'danger'
                     ? 'bg-rose-500 text-white'
                     : tab.badgeType === 'success'
@@ -386,9 +396,14 @@ export default function PortalSantri() {
                       </div>
                     </div>
                   ) : (
-                    <button onClick={() => setIsEditing(true)} className="w-full flex items-center justify-center gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 py-3.5 rounded-xl text-sm font-bold transition-all shadow-sm">
-                      <Edit className="w-4 h-4"/> Usulkan Perbaikan / Pembaruan Data
-                    </button>
+                    <div className="flex justify-center sm:justify-start">
+                      <IconButton 
+                        onClick={() => setIsEditing(true)} 
+                        icon={<Edit className="w-4 h-4"/>}
+                        label="Usulkan Perbaikan / Pembaruan Data"
+                        variant="emerald"
+                      />
+                    </div>
                   )}
                 </div>
               </div>
@@ -403,7 +418,13 @@ export default function PortalSantri() {
                     </h3>
                     <p className="text-xs text-gray-500 mt-2 leading-relaxed">Silakan perbaiki data. Hanya "Nama Lengkap" dan "Alamat Lengkap" yang wajib diisi.</p>
                   </div>
-                  <button type="button" onClick={() => {setIsEditing(false); initForm(santri);}} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors"><X className="w-5 h-5"/></button>
+                  <IconButton 
+                    type="button" 
+                    onClick={() => {setIsEditing(false); initForm(santri);}} 
+                    icon={<X className="w-5 h-5"/>}
+                    label="Tutup Form"
+                    variant="ghost"
+                  />
                 </div>
 
                 {/* Upload Foto Profil Ringan */}
@@ -424,7 +445,14 @@ export default function PortalSantri() {
                     <h4 className="font-bold text-emerald-950 text-sm">Foto Profil Santri</h4>
                     <p className="text-xs text-gray-500 mt-1 mb-3">Format JPG/PNG. Otomatis dikompres agar kuota tetap hemat.</p>
                     <input type="file" id="foto_profil" name="foto_profil" accept="image/*" ref={fileInputRef} onChange={handlePhotoUpload} className="hidden" />
-                    <button type="button" onClick={() => fileInputRef.current?.click()} className="text-xs font-bold bg-white border border-emerald-200 text-emerald-800 px-4 py-2 rounded-lg hover:bg-emerald-50 shadow-sm">Pilih Foto...</button>
+                    <IconButton 
+                      type="button" 
+                      onClick={() => fileInputRef.current?.click()} 
+                      icon={<Camera className="w-4 h-4"/>}
+                      label="Pilih Foto..."
+                      variant="emerald"
+                      size="sm"
+                    />
                   </div>
                 </div>
 
@@ -479,11 +507,21 @@ export default function PortalSantri() {
                   </div>
                 </div>
 
-                <div className="flex flex-col sm:flex-row justify-end gap-3 pt-6 border-t border-gray-100">
-                  <button type="button" onClick={() => {setIsEditing(false); initForm(santri);}} className="py-3 px-6 rounded-xl font-bold text-emerald-900 bg-amber-100 hover:bg-amber-200 transition-colors text-sm">Batalkan</button>
-                  <button type="submit" disabled={isSaving} className="py-3 px-6 rounded-xl font-bold text-white bg-emerald-800 hover:bg-emerald-900 flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/30 transition-all text-sm disabled:opacity-70">
-                    <Save className="w-4 h-4" /> {isSaving ? 'Mengirim Usulan...' : 'Kirim Usulan Perbaikan'}
-                  </button>
+                <div className="flex justify-end gap-3 pt-6 border-t border-gray-100">
+                  <IconButton 
+                    type="button" 
+                    onClick={() => {setIsEditing(false); initForm(santri);}} 
+                    icon={<X className="w-4 h-4" />}
+                    label="Batalkan"
+                    variant="gray"
+                  />
+                  <IconButton 
+                    type="submit" 
+                    disabled={isSaving} 
+                    icon={<Save className="w-4 h-4" />}
+                    label={isSaving ? 'Mengirim Usulan...' : 'Kirim Usulan Perbaikan'}
+                    variant="dark"
+                  />
                 </div>
               </form>
             )}
@@ -535,14 +573,14 @@ export default function PortalSantri() {
                   </h3>
                   <p className="text-xs text-gray-500 mt-1">Transparansi kewajiban, pembayaran syahriah, dan iuran santri</p>
                 </div>
-                <button
+                <IconButton
                   type="button"
                   onClick={() => handleKonfirmasiWa()}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold shadow-md shadow-emerald-900/10 transition-colors"
-                >
-                  <MessageCircle className="w-4 h-4" />
-                  Hubungi Bendahara via WA
-                </button>
+                  icon={<MessageCircle className="w-4 h-4" />}
+                  label="Hubungi Bendahara via WA"
+                  variant="emerald"
+                  size="sm"
+                />
               </div>
 
               {/* Status Banner */}
@@ -584,14 +622,14 @@ export default function PortalSantri() {
                       <p className="text-xs text-gray-600 mt-0.5">Mohon kerja samanya untuk segera menunaikan kewajiban administrasi ini.</p>
                     </div>
                   </div>
-                  <button
+                  <IconButton
                     type="button"
                     onClick={() => handleKonfirmasiWa()}
-                    className="w-full sm:w-auto px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow-md shadow-rose-900/20 transition-all flex items-center justify-center gap-2"
-                  >
-                    <MessageCircle className="w-4 h-4" />
-                    Konfirmasi Pelunasan
-                  </button>
+                    icon={<MessageCircle className="w-4 h-4" />}
+                    label="Konfirmasi Pelunasan"
+                    variant="rose"
+                    size="sm"
+                  />
                 </div>
               )}
 
@@ -746,14 +784,14 @@ export default function PortalSantri() {
                         {/* Aksi Konfirmasi Per Tagihan jika belum lunas */}
                         {!isLunas && (
                           <div className="mt-3 pt-3 border-t border-rose-100 flex justify-end">
-                            <button
+                            <IconButton
                               type="button"
                               onClick={() => handleKonfirmasiWa(t)}
-                              className="inline-flex items-center gap-1.5 text-xs font-bold text-rose-700 hover:text-rose-900 bg-rose-50 hover:bg-rose-100 px-3 py-1.5 rounded-lg transition-colors"
-                            >
-                              <MessageCircle className="w-3.5 h-3.5" />
-                              Konfirmasi Tagihan Ini via WhatsApp
-                            </button>
+                              icon={<MessageCircle className="w-3.5 h-3.5" />}
+                              label="Konfirmasi Tagihan Ini via WhatsApp"
+                              variant="rose"
+                              size="sm"
+                            />
                           </div>
                         )}
                       </div>
@@ -797,13 +835,14 @@ export default function PortalSantri() {
                 <p>
                   💡 <b>Penting:</b> Cantumkan berita transfer dengan format: <code className="bg-emerald-950 px-2 py-0.5 rounded text-amber-300 font-mono">[Nama Santri] - [Kategori]</code>
                 </p>
-                <button
+                <IconButton
                   type="button"
                   onClick={() => handleKonfirmasiWa()}
-                  className="text-amber-400 hover:text-amber-300 font-bold flex items-center gap-1 underline underline-offset-2"
-                >
-                  Kirim Bukti Transfer <ExternalLink className="w-3.5 h-3.5" />
-                </button>
+                  icon={<ExternalLink className="w-3.5 h-3.5" />}
+                  label="Kirim Bukti Transfer"
+                  variant="amber"
+                  size="sm"
+                />
               </div>
             </div>
           </div>

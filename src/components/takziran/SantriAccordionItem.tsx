@@ -4,6 +4,7 @@ import {
   Star, FileText, Check, X, Sparkles, CheckSquare, Square, Edit3, Plus
 } from 'lucide-react';
 import HistoryGrid from './HistoryGrid';
+import { formatSantriName } from '../../utils/nameFormat';
 
 interface SantriAccordionItemProps {
   santri: any;
@@ -139,7 +140,7 @@ export const SantriAccordionItem = memo(function SantriAccordionItem({
       >
         <div className="flex-1 min-w-0 pr-3">
           <div className="flex flex-wrap items-center gap-2 mb-1">
-            <h4 className="font-extrabold text-base text-gray-900 truncate">{santri.nama_lengkap}</h4>
+            <h4 className="font-extrabold text-base text-gray-900 truncate">{formatSantriName(santri.nama_lengkap)}</h4>
             {santri.kelas && (
               <span className="bg-blue-100 text-blue-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-blue-200">
                 Kls {santri.kelas}
